@@ -36,6 +36,9 @@ suite "JSON pointer":
       Person.point(sideGigs[0]) == "/sideGigs/0"
       Person.point(sideGigs[0].title) == "/sideGigs/0/title"
 
+  test "Pointing to element that is inside everything in an array":
+    check Person.point(sideGigs.title) == "/sideGigs/*/title"
+
   test "Element that doesnt exist":
     check not compiles(Person.point(noExist))
 
