@@ -6,7 +6,7 @@ type
   Job = object
     title: string
     `~1`: string
-    `/tail`: string
+    `/tail~`: string
     directions: seq[string]
     boss: Person
     
@@ -55,7 +55,7 @@ suite "JSON pointer":
       seq[Person].point([0].name) == "/0/name"
       seq[Person].point([].name) == "/*/name"
 
-  # test "Value escaping":
-    # check:
-      # Person.point(job.`/tail`) == "/job/~1tail"
-      # Person.point(job.`~1`) == "/job/~01 "
+  test "Value escaping":
+    check:
+      Person.point(job.`~1`) == "/job/~01"
+      Person.point(job.`/tail~`) == "/job/~1tail~0"

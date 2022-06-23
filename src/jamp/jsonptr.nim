@@ -1,4 +1,7 @@
-import std/macros
+import std/[
+  macros,
+  strutils
+]
 
 import utils
 
@@ -42,8 +45,16 @@ type
     of Index:
       index: BiggestInt # -1 means *
 
+func pointerReplacements(x: string): string =
+  ## Performs needed replacements to make string safe for pointer
+  x.multiReplace(
+    ("~", "~0"),
+    ("/", "~1")
+  )
 
 func makePoint*(curr: NimNode): seq[PointNode] =
+  ## Goes through all the parameter accesses and flattens it down
+  ## into a sequence to make it easier to work with
   if curr.kind != nnkDotExpr:
     case curr.kind
     of nnkBracketExpr:
@@ -64,6 +75,18 @@ func makePoint*(curr: NimNode): seq[PointNode] =
         name: curr,
         kind: Index,
         index: index
+      )
+    of nnkAccQuoted:
+      # Quoted parameters need to have their multiple
+      # components joined into one ident
+      var quotedName: string
+      for id in curr:
+        quotedName &= id.strVal
+      let newIdent = ident(quotedName)
+      newIdent.copyLineInfo(curr)
+      result &= PointNode(
+        name: newIdent,
+        kind: Param
       )
     else:
       "Invalid JSON pointer syntax".error(curr)
@@ -103,6 +126,7 @@ func hasParam(obj: NimNode, key: string): bool =
   result = obj.getParam(key).kind != nnkEmpty
 
 func isEmpty(obj: NimNode): bool =
+  ## Returns true if object is of type nnkEmpty
   obj.kind == nnkEmpty
 
 macro point*(kind: typedesc, path: untyped): string = 
@@ -124,7 +148,7 @@ macro point*(kind: typedesc, path: untyped): string =
   var 
     pathString: string
     curr = kind.getFullType()
-    i = 0
+    i = 0 
   for comp in path.makePoint():
     pathString &= "/"
     let 
@@ -136,21 +160,26 @@ macro point*(kind: typedesc, path: untyped): string =
         else:
           newEmptyNode()
     if comp.name.kind == nnkIdent and param.isEmpty():
-      ($comp.name & " doesn't exist").error(comp.name)
+      # TODO: Specify the object it is trying to get the parameter for
+      # Might not be possible?
+      ($comp.name & " doesn't exist for object").error(comp.name)
     case comp.kind
     of Index:
+      if paramType.kind != nnkBracketExpr or not paramType[0].eqIdent("seq"):
+        "Array access can only be one on seq[T] parameters".error(comp.name)
       # If its the first component and its an array then
       # it doesn't need a name
       if comp.name.kind != nnkIdent:
         if not (curr.isSeq and i == 0):
-          "Array access must have array parameter specified".error(curr)
+          "Array access must have array parameter specified".error(comp.name)
       else:
-        pathString &= $comp.name
+        pathString &= pointerReplacements($comp.name)
         pathString &= "/"
+      # Use * to mean every index
       pathString &= (if comp.index != -1: $comp.index else: "*")
       curr = paramType[1].getFullType()
     of Param:
-      pathString &= $comp.name
+      pathString &= pointerReplacements($comp.name)
       curr = paramType.getFullType()
       
     inc i
