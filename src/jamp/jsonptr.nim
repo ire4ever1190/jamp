@@ -36,21 +36,43 @@ type
     Index
 
   PointNode = object
-    kind: PointNodeKind
-    
+    name: NimNode # Stored has NimNode so we can error it if it doesn't exist
+    case kind: PointNodeKind
+    of Param: discard
+    of Index:
+      index: BiggestInt # -1 means *
 
-func makePoint*(curr: NimNode): seq[string] =
-  if curr.kind in {nnkIdent, nnkBracketExpr}:
+
+func makePoint*(curr: NimNode): seq[PointNode] =
+  if curr.kind != nnkDotExpr:
     case curr.kind
-    of nnkIdent:
-      result &= $curr
     of nnkBracketExpr:
-      result &= $curr[0]
-      result &= $curr[1].intVal
-    else: discard
+      let index = if curr.len == 2: curr[1].intVal else: -1
+      result &= PointNode(
+        name: curr[0],
+        kind: Index,
+        index: index
+      )
+    of nnkIdent:
+      result &= PointNode(
+        name: curr,
+        kind: Param
+      )
+    of nnkBracket:
+      let index = if curr.len == 1: curr[0].intVal else: -1
+      result &= PointNode(
+        name: curr,
+        kind: Index,
+        index: index
+      )
+    else:
+      "Invalid JSON pointer syntax".error(curr)
   else:
     result &= makePoint(curr[0])
     result &= makePoint(curr[1])
+
+func isSeq(x: NimNode): bool =
+  result = x.kind == nnkBracketExpr and x.len == 2 and x[0].eqIdent("seq")
 
 func getFullType(obj: NimNode): NimNode =
   ## Fully gets the ObjectTy or symbol (if type like string of int) of an type
@@ -62,7 +84,10 @@ func getFullType(obj: NimNode): NimNode =
       result = result[1].getFullType()
     elif result.kind == nnkBracketExpr:
       # This means it is something like seq[string]
-      break
+      if result.isSeq:
+        break
+      else:
+        result = result[1]
     else:
       result = result[0].getFullType()
 
@@ -77,6 +102,8 @@ func hasParam(obj: NimNode, key: string): bool =
   ## Returns true if object has a parameter
   result = obj.getParam(key).kind != nnkEmpty
 
+func isEmpty(obj: NimNode): bool =
+  obj.kind == nnkEmpty
 
 macro point*(kind: typedesc, path: untyped): string = 
   ## Creates a `JSON pointer <https://www.packetizer.com/rfc/rfc6901/>`_ for a type.
@@ -91,32 +118,43 @@ macro point*(kind: typedesc, path: untyped): string =
         friends: seq[Person]
         age: int
     assert Person.point(name) == "/name"
-    assert Person.point(friends) == "/friends/*" 
+    assert Person.point(friends[]) == "/friends/*" 
+    assert Person.point(friends[0].name) == "/friends/0/name"
   #==#
-  var pathString: string
-  var curr = kind.getFullType()
-  let components = path.makePoint()
-  var i = 0
-  while i < components.len:
-    # Add the current component
-    let comp = components[i]
-    let param = curr.getParam(comp)
-    if param.kind == nnkEmpty:
-      (comp & " doesn't exist").error(path)
-    pathString &= "/" & comp
-    # Check if the component added was an array access
-    # If so then we need to add the correct index access
-    let paramType = param.getFullType()
-    if paramType.kind == nnkBracketExpr:
-      if i < components.len - 1 and components[i + 1].isNumeric:
-        pathString &= "/" & components[i + 1]
-        inc i
+  var 
+    pathString: string
+    curr = kind.getFullType()
+    i = 0
+  for comp in path.makePoint():
+    pathString &= "/"
+    let 
+      param = if comp.name.kind == nnkIdent: curr.getParam($comp.name) else: curr
+      paramType = if not param.isEmpty(): 
+          param.getFullType()
+        elif curr.isSeq and i == 0:
+          kind
+        else:
+          newEmptyNode()
+    if comp.name.kind == nnkIdent and param.isEmpty():
+      ($comp.name & " doesn't exist").error(comp.name)
+    case comp.kind
+    of Index:
+      # If its the first component and its an array then
+      # it doesn't need a name
+      if comp.name.kind != nnkIdent:
+        if not (curr.isSeq and i == 0):
+          "Array access must have array parameter specified".error(curr)
       else:
-        pathString &= "/*"        
+        pathString &= $comp.name
+        pathString &= "/"
+      pathString &= (if comp.index != -1: $comp.index else: "*")
       curr = paramType[1].getFullType()
-    else:
-      curr = paramType
+    of Param:
+      pathString &= $comp.name
+      curr = paramType.getFullType()
+      
     inc i
+      
   result = newLit pathString
 
 
