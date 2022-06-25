@@ -71,5 +71,14 @@ proc startSession*(client: JMAPClient | AsyncJMAPClient) {.multisync.} =
 
 proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JMAPResponse] {.multisync.} =
   ## Perform a raw request to the JMAP server
+  echo req.toJson().pretty()
   let resp = await client.http.request(client.session.apiUrl, HttpPost, body = $req.toJson())
-  echo resp.body.await().parseJson().pretty()
+  echo resp.status
+  let body = await resp.body()
+  if resp.code.is2xx:
+    result.fromJson(resp.body.await().parseJson(), JOptions(
+      allowExtraKeys: true,
+      allowMissingKeys: false
+    ))
+  else:
+    raise (ref JMAPError)(msg: body)

@@ -98,7 +98,8 @@ func isSeq(x: NimNode): bool =
   result = x.kind == nnkBracketExpr and x.len == 2 and x[0].eqIdent("seq")
 
 func getFullType(obj: NimNode): NimNode =
-  ## Fully gets the ObjectTy or symbol (if type like string of int) of an type
+  ## Fully gets the ObjectTy or symbol (if type like string of int) of an type.
+  ## Doesn't recurse through seq[T] though
   result = obj.getType()
   while result.kind notin {nnkSym, nnkObjectTy}:
     if result[0].eqIdent("typeDesc"):
@@ -184,25 +185,4 @@ macro point*(kind: typedesc, path: untyped): string =
       
     inc i
       
-  result = newLit pathString
-
-
-
-
-when isMainModule:
-  type
-    PersonObj = object
-      name: string
-      age: int
-      test: seq[string]
-    L = seq[string]
-    Person = ref PersonObj
-    
-  macro foo(x, y: typedesc) = 
-    assert x.getFullType == y.getFullType
-  foo(PersonObj, Person)
-  static:
-    macro l(x: typedesc) = echo x.getFullType().treeRepr
-    l(L)
-    
-  
+  result = newLit pathString  
