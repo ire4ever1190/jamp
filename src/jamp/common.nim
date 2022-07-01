@@ -38,7 +38,7 @@ type
   Invocation* = ref object
     ## An invocation represents a method call against the JMAP server
     name*: string
-    arguments*: Table[string, JsonNode]
+    arguments*: JsonNode
     id*: string
 
   Call*[T] = object
@@ -52,7 +52,7 @@ type
     `using`*: seq[string]
     methodCalls*: seq[Invocation]
 
-  ResultReference* = object
+  ResultReference* = ref object # Made ref so parameters can be nil
     resultOf*, name*, path*: string
 
   JMAPResponse* = object
@@ -67,6 +67,13 @@ type
   LimitError* = object of JMAPError
     ## The request was not processed as it would have exceeded one of the request limits defined on the capability object.
 
+  PathObject* = Table[string, JsonNode]
+    ## Mapping of Json pointers to updated versions of the objects
+
+const
+  # from here https://jmap.io/spec-core.html#the-id-data-type 
+  allowedIDCharacters = {'a'..'z'} + {'A'..'Z'} + {'0'..'9'} + {'-', '_'}
+
 # Hooks
     
 proc toJsonHook*(call: Invocation): JsonNode =
@@ -78,14 +85,29 @@ proc toJsonHook*(call: Invocation): JsonNode =
 proc fromJsonHook*(call: var Invocation, data: JsonNode) =
   call = Invocation(
     name: data[0].str,
-    arguments: data[1].to(Table[string, JsonNode]),
+    arguments: data[1],
     id: data[2].str
   )
 
 # Helpers
+
 func add*(request: var JMAPRequest, call: Call) =
-  ## Adds a call to the request
-  request.`using` &= call.needed
+  ## Adds a call to the request.
+  ## Automatically adds the needed capabilities to `using`
+  runnableExamples:
+    import jmap/specs/core
+    var req: JMAPRequest
+    # Build the request with your needed calls
+    req &= Core.echo(%* {
+      "foo": "bar"
+    })
+    req &= Core.echo(%* {
+      "data": 9
+    })
+    # Send the request off with the client
+  #==#
+  if call.needed notin request.`using`:
+    request.`using` &= call.needed
   request.methodCalls &= call.invocation
 
 func `[]`*(resp: JMAPResponse, id: string): Table[string, JsonNode] =
@@ -99,11 +121,44 @@ func id*(call: Call): string {.inline.} =
   ## Returns invocation ID
   result = call.invocation.id
 
-proc newInvocation*(name: string, args: Table[string, JsonNode], id = ""): Invocation =
+func reuse*(inv: Invocation, path: string): ResultReference =
+  ## Pass this has a parameter to a JMAP call and it will allow
+  ## you to reuse value from previous call. See **TODO LINK JSONPTR MODULE** for information
+  ## about path
+  result = ResultReference(
+    resultOf: inv.id,
+    name: inv.name,
+    path: path
+  )
+
+func reuse*(call: Call, path: string): ResultReference {.inline.} =
+  ## Helper function for reuse_ for use with Call_
+  result = call.invocation.reuse(path)
+
+proc newInvocation*(name: string, args: sink JsonNode, id = ""): Invocation =
   ## Creates a new invocation.
-  ## If you don't provide an ID then it will auto generate one
+  ## If you don't provide an ID then it will auto generate one.
+  ## ID must only contain URL safe characters (A-Za-z0-9_-) and is recommended that it starts
+  ## with an alpha character to be safe
+  if id != "":
+    # Check ID matches spec
+    assert id.len >= 1 and id.len <= 255, "ID is too big"
+    for c in id:
+      assert c in allowedIDCharacters, "Invalid character '" & $c & "'"
+        
+  assert args.kind == JObject, "args must be a string: Json object"
   result = Invocation(
     name: name,
     arguments: args,
-    id: if id != "": id else: $genNanoID()
+    
+    id: if id != "": id else: ("i" & $genNanoID())
+  )
+
+func initCall*[T](needed, name: string, args: sink JsonNode, id = ""): Call[T] =
+  ## Creates a new call.
+  ##
+  ## * **needed** is the capabilities needed by the server to perform the method
+  result = Call[T](
+    needed: needed,
+    invocation: newInvocation(name, args, id)
   )

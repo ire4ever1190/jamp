@@ -1,4 +1,7 @@
-import std/strutils
+import std/[
+  strutils,
+  macros
+]
 
 ##[
   Contains utils for library. Mostly for internal use
@@ -14,3 +17,7 @@ func isNumeric*(x: openArray[char]): bool =
   for c in x:
     if c notin Digits:
       return false
+      
+func isEmpty*(obj: NimNode): bool =
+  ## Returns true if object is of type nnkEmpty
+  obj.kind == nnkEmpty

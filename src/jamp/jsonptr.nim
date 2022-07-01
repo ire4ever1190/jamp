@@ -126,9 +126,6 @@ func hasParam(obj: NimNode, key: string): bool =
   ## Returns true if object has a parameter
   result = obj.getParam(key).kind != nnkEmpty
 
-func isEmpty(obj: NimNode): bool =
-  ## Returns true if object is of type nnkEmpty
-  obj.kind == nnkEmpty
 
 macro point*(kind: typedesc, path: untyped): string = 
   ## Creates a `JSON pointer <https://www.packetizer.com/rfc/rfc6901/>`_ for a type.

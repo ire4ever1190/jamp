@@ -60,10 +60,3 @@ test "Passing reference to previous result":
     "properties": @["id"]
   }
 
-test "Creating a new method":
-  type
-    Foo = object
-  proc get[Foo](x: int): Call[Option[string]] {.jmapMethod(Base).} =
-    result.needed = "bar"
-
-  check Foo.get("1234", 9).needed == "bar"

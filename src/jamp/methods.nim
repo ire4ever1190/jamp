@@ -1,8 +1,8 @@
 ##[
   JMAP has 6 standard methods
 
-  - `get <https://jmap.io/spec-core.html#get>`_: Used to get data of a certain type
-  - `changes <https://jmap.io/spec-core.html#changes`_: Efficiently get new items since to match new state on server after a series of updates
+  - get_: Used to get data of a certain type
+  - changes <https://jmap.io/spec-core.html#changes`_: Efficiently get new items since to match new state on server after a series of updates
   - `set <https://jmap.io/spec-core.html#set>`_: Used to create, update, and destroy objects of a certain type
   - `copy <https://jmap.io/spec-core.html#copy>`_: Used to move records between accounts
   - `query <https://jmap.io/spec-core.html#query`_: Used to search for records that match a query
@@ -19,12 +19,21 @@ import std/[
   options,
   tables,
   json,
-  macros
+  jsonutils,
+  macros,
+  genasts
 ]
 
 import common
 
 type
+  # JPar*[T] = object
+  JPar*[T: not ResultReference] = T or ResultReference
+    ## Means that the parameter can either be `T` or a reference to the result
+    ## of another method
+    # data: JsonNode
+    # isRef: bool
+
   GetResponse*[T] = ref object of RootObj
     ## Basic response from a **get** method, contains list of records retrieved.
     ## **state** can be used to cache information from this, if the state changes
@@ -60,7 +69,7 @@ type
     `type`*: string
     description: Option[string]
 
-  CopyResponse*[T] = object
+  CopyResponse*[T] = ref object of RootObj 
     ## Response from Copy method.
     ## **Created** might contain a slimmed down version of the full type, always check the spec to see
     fromAccountId*, accountId*: string
@@ -69,7 +78,7 @@ type
     created*: Option[Table[string, T]]
     notCreated*: Option[Table[string, SetError]]
 
-  QueryResponse* = object
+  QueryResponse* = ref object of RootObj
     ## Response from a query
     accountId*: string
     queryState*: string
@@ -78,7 +87,7 @@ type
     ids*: seq[string]
     total*, limit*: Option[uint]
 
-  QueryChangesResposne* = object
+  QueryChangesResponse* = ref object of RootObj
     accountId*: string
     oldQueryState*, newQueryState*: string
     total*: Option[uint]
@@ -89,130 +98,157 @@ type
     id*: string
     index*: uint
 
+  Comparator* = object
+    ## Used to compare two properties for sorting
+    ##
+    ## * **property**: Property on the object to use for comparison
+    ## * **collation**: Algorithm to use for comparing order of strings. Check server for which algorithms it supports
+    property*: string
+    isAscending*: bool
+    collation*: Option[string]
 
-macro jmapMethod*(base: typed, prc: untyped) =
-  ## Modifies the parameters of the proc so that it can take both normal parameters
-  ## and references to other methods results (via ResultReference_). 
-  ## 
-  ## .. Note:: The parameters will be provided to you has `JsonNode` and will lose type info
-  ##
-  ## Indepth example if we are making a **get** method for record **Foo**
-  runnableExamples:
-    type
-      Foo = object
-      
-    block:
-      # Our Foo getter extends the standard getter so we specify that
-      proc get[Foo](extraProp: string): Call[Foo] {.jmapMethod(get).} =
-        # extraProp is JsonNode in the body
-        # There also exists variable extraPropIsRef if its a reference to another methods result
-        # args is also injected which contains the args from the base method (get in this case)
-        args.addParam(extraProp, extraProp)
-        result = initCall(
-          "urn:ietf:params:jmap:core",
-          "Foo/get",
-          args
-        )
-    block:
-      # This will generate approximately 
-      # The wrapper function which gives typesafe interface
-      proc get(_: typedesc[Foo], accountId: string | ResultReference, #[params from base get]# 
-              extraProp: string | ResultReference): Call[Foo] {.inline.} =
-        getRaw(accountId, accountId is ResultReference, extraProp, extraProp is ResultReference)
-      # Raw version which performs all the processing
-      proc getRaw(
-                  accountId: JsonNode, accountIdIsRef: bool, #[ other params from base get]#
-                  extraProp: JsonNode, extraPropIsRef: bool
-                ) =
-        args = get(accoutnId, accountIdIsRef, #[other params]#)
-        args.addParam(extraProp, extraProp)
-        result = initCall(
-            "urn:ietf:params:jmap:core",
-            "Foo/get",
-            args
-        )
+  Operator* = enum
+    ## Operators for use with FilterOperator_.
+    ## **Just** means a condition on its own
+    And = "AND"
+    Or  = "OR"
+    Not = "NOT"
+    Just
 
-      # This allows it to be called like so
-      let call = Foo.get("1234567", "extraProp")
-  #==#
-  # TODO: Copy documentation
-  let rawProcName = ident($prc.name & "Raw")
-  var 
-    wrapperProc = copy prc
-    # Have the wrapper call the raw version of the proc which only takes JSON nodes
-    # and a parameter to specify if the parameter is a reference
-    wrapperBody = nnkCall.newTree(rawProcName)
-    rawProc = copy prc
-    rawParams = nnkFormalParams.newTree(prc.params[0])
-  
-  # Create a new series of parameters that can be their original type
-  # or a reference to the result of another method
-  for param in wrapperProc[3]:
-    if param.kind == nnkIdent: continue
-    param[^2] = infix(param[^2], "|", ident"ResultReference")
-    # Add the raw version of the parameters
-    for id in param[0 ..< ^2]:
-      # Add the two parameters to the raw proc
-      rawParams &= newIdentDefs(id, ident"JsonNode")
-      rawParams &= newIdentDefs(ident($id & "IsRef"), ident"bool")
-      # Add the passing of the parameter along with specifying if the
-      # parameter was a reference before converting to json
-      wrapperBody &= id.prefix("%")
-      # A parameter is considered a reference if its of type ResultReference
-      # and it isn't nil (Since nil is usually used to mean default parameter)
-      wrapperBody.add quote do:
-        (when `id` is ResultReference: not `id`.isNil
-        else: false)
-      
-  # Move the generic parameter into a typedesc parameter to make it idomatic
-  if wrapperProc[2].kind == nnkEmpty:
-    "Missing record specifier e.g. get[Mailbox](params...)".error(wrapperProc)
+  FilterOperator* = ref object
+    case operator*: Operator
+    of And..Not:
+      conditions*: seq[FilterOperator]
+    of Just:
+      condition: FilterCondition
+
+  FilterCondition = distinct JsonNode
+    ## Spec defined properties that can be used for conditions
+    # Is a distinct JsonNode since the objects are semi complex and basically entirely Option[T]
+    # Also means we can define helpers without knowing what the Condition will look like
     
-  wrapperProc[3].insert(1, newIdentDefs(ident"_", nnkBracketExpr.newTree(
-    ident"typedesc",
-    wrapperProc[2][0][0]
-  )))
-  wrapperProc[2] = newEmptyNode()
-  
-  rawProc.params = rawParams
-  rawProc.name = ident($rawProc.name & "Raw")
-  
-  wrapperProc.body = wrapperBody
-  wrapperProc.addPragma(ident"inline")
-  
-  result = newStmtList(
-    rawProc,
-    wrapperProc
+  Base* = object
+    ## Namespace for default methods
+
+using _: typedesc[Base]
+
+# Filter operator helpers
+
+func `and`(a, b: FilterOperator): FilterOperator =
+  result = FilterOperator(
+    operator: And,
+    conditions: @[a, b]
   )
+
+func `or`(a, b: FilterOperator): FilterOperator =
+  result = FilterOperator(
+    operator: Or,
+    conditions: @[a, b]
+  )
+
+func `not`(op: FilterOperator): FilterOperator =
+  result = FilterOperator(
+    operator: Not,
+    conditions: @[op]
+  )
+
+
+func initComparator*(property: string, isAscending = true, collation = ""): Comparator = 
+  ## Creates a new comparator to be used in JMAP methods
+  result.property = property
+  result.isAscending = isAscending
+  if collation != "":
+    result.collation = some collation
+
+func isRef*(param: JPar): static[bool] =
+  ## Returns true if **param** is a ResultReference_
+  result = param is ResultReference
+
+# Can't call it `isNil` since then it would resolve to systems isNil instead and error
+func eqNil*(param: JPar): bool {.inline.} =
+  ## Returns true if **param** is `nil`.
+  ## If `T` is a non nillable type (e.g. `string`) then it always returns false
+  runnableExamples:
+    assert JPar[string](nil).eqNil
+    assert not JPar[string]("string").eqNil
+  #==#
+  when compiles(param == nil):
+    result = param == nil
+  else:
+    result = false
+
+const toJOpts = ToJsonOptions(
+  enumMode: joptEnumString,
+  jsonNodeMode: joptJsonNodeAsRef
+)
+
+proc `[]=`*(data: JsonNode, key: string, param: JPar) =
+  ## Adds a param to the data. This automatically prefixes the key with `#`
+  ## if **param** is a ResultReference_
+  data[(if param.isRef and not param.eqNil: "#" else: "") & key] = param.toJson(toJOpts)
+
+proc addParam(data: JsonNode, key: string, param: JPar) =
+  data[key] = param
+
+#
+# Base versions
+# 
+
+macro addParams*(data: JsonNode, params: varargs[untyped]) =
+  ## Adds multiple params to **data** with their key being the name of the paramter
+  runnableExamples:
+    import std/json
+    let
+      name: JPar[string] = "hello"
+      age: JPar[int] = ResultReference()
+    var data = newJObject()
+    data.addParams(name, age)
+    
+    assert "name" in data
+    assert "#age" in data
+  #==#
+  result = newStmtList()
+  let sym = bindSym("addParam")
+  echo sym.treeRepr
+  for param in params:
+    let key = newLit $param
+    result.add quote do:
+      `data`[`key`] = `param`
   echo result.toStrLit
 
-type MailBox = object
+const defaultVal* = ResultReference(nil)
+  ## Use this to specify that the server should use the default value for the parameter
+  # I ran into a compiler error if I used nil so I instead use this which doesn't error =)
 
-template addParam*(json: JsonNode, param: untyped, val: JsonNode) =
-  ## Adds the parameter to Json variable. If it detects that the variable is meant to be 
-  ## a reference then it sets the key to be correct. See jmapMethod_ for actual example of usage
-  json[(if `param IsRef`: "#" else: "") & astToStr(param)] = val
-
-template addParam*(json: JsonNode, param: untyped) =
-  ## Overload for addParam_ when both **param** and **val** are the same
-  json.addParam(param, param)
-
-proc baseGet*[JsonNode](accountId: string, ids: seq[string] = nil, properties: seq[string] = @["id"]): JsonNode {.jmapMethod(nil).} =
-  ## Basic version of get defined in the `core spec <https://jmap.io/spec-core.html#get>`_.
+proc get*(_; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal, 
+          properties: JPar[seq[string]] = @["id"]): JsonNode =
+  ## Base version of get defined in the `core spec <https://jmap.io/spec-core.html#get>`_.
+  ## Response for call will likely be in the form of GetResponse_
   result = newJObject()
-  assert id != nil, "account ID must be specified in `get`"
-  result.addParam(accountId)
-  result.addParam(ids)
-  result.addParam(properties)
-  
+  result.addParams(accountId, ids, properties)
+
+proc changes*(_; accountId: JPar[string], sinceState: JPar[string], maxChanges: JPar[uint] = defaultVal): JsonNode =
+  ## Base version of changes defined in the `core spec <https://jmap.io/spec-core.html#changes>`_.
+  ## Response for call will likely be in the form of ChangesResponse_
+  assert maxChanges > 0, "maxChanges must be greater than 0"
+  result = newJObject()
+  result.addParams(accountId, sinceState, maxChanges)
+
+proc query*(_; accountId: JPar[string], filter: JPar[FilterOperator] = defaultVal,
+            sort: JPar[seq[Comparator]] = defaultVal, position: JPar[int] = 0,
+            anchor: JPar[string] = defaultVal, anchorOffset: JPar[int] = 0,
+            limit: JPar[uint] = defaultVal, calculateTotal: JPar[bool] = false): JsonNode =
+  ## Used to query the server for large sets of data. From `core spec <https://jmap.io/spec-core.html#query>`_.
+  ##
+  ## * **filter**: Set of filters to query with. `Q` is a spec defined object for querying
+  ## * **sort**: List of comparators to use. If the first returns `true` then the second is used etc...
+  ## * **position**: Starting index of first ID in results. If negative that it counts from the end (python style indexing)
+  ## * **anchor**: If provided then **position** is ignored and the first ID in results will be **anchor**
+  ## * **anchorOffset**: Offset from **anchor** to start results at
+  ## * **calculateTotal**: Returns total amount of items in response. Is slow for large data/filters so be careful
+  result = newJObject()
+  result["filter"] = %filter
+  result.addParams(accountId, filter, sort, position, anchor, anchorOffset, limit, calculateTotal)
 
 
-# proc get(id: string, ids: seq[string], properties = @["id"]) = discard
-
-# proc get(id: string | ResultReference, ids: seq[string] | ResultReference, properties: seq[string] | ResultReference = @["id"]): JsonNode = discard
-
-
-proc get(id: JsonNode, idIsRef: bool, ids: JsonNode, idsIsRef: bool): JsonNode =
-  let idKey = if idIsRef: "#id" else: "id"
-  result["idKey"] = id
-
+export toJson

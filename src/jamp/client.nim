@@ -69,14 +69,18 @@ proc startSession*(client: JMAPClient | AsyncJMAPClient) {.multisync.} =
   let resp = await client.http.request(client.url("/.well-known/jmap"))
   client.session = resp.body.await().parseJson().to(Session)
 
+func `$`*(req: JMAPRequest): string =
+  $req.toJson()
+
 proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JMAPResponse] {.multisync.} =
   ## Perform a raw request to the JMAP server
-  echo req.toJson().pretty()
+  assert client.session.state != "", "Session doesn't exist. You might've forgotten to call startSession()"
   let resp = await client.http.request(client.session.apiUrl, HttpPost, body = $req.toJson())
-  echo resp.status
   let body = await resp.body()
   if resp.code.is2xx:
-    result.fromJson(resp.body.await().parseJson(), JOptions(
+    let j = resp.body.await().parseJson()
+    echo j.pretty()
+    result.fromJson(j, JOptions(
       allowExtraKeys: true,
       allowMissingKeys: false
     ))
