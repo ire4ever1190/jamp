@@ -2,9 +2,9 @@
 
 > I can't think of a good name so why not jamp?
 
-[JMAP](https://jmap.io/) client that I made. Bit rough at the moment
+[JMAP](https://jmap.io/) client that I made. Bit rough at the moment and the API could still change.
 
-### Implmented
+### Implemented
 - [x] Core
 - [ ] Mail
 - [ ] WebSocket
