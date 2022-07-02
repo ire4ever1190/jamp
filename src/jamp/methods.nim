@@ -116,7 +116,7 @@ type
     of And..Not:
       conditions*: seq[FilterOperator]
     of Just:
-      condition: FilterCondition
+      condition*: FilterCondition
 
   FilterCondition* = distinct JsonNode
     ## Spec defined properties that can be used for conditions
@@ -134,21 +134,22 @@ using _: typedesc[Base]
 
 # Filter operator helpers
 
-{.push raises: [].}
+template makeOp(name: untyped, op: Operator) =
+  func name*(a, b: FilterOperator): FilterOperator =
+    if a.operator == op xor b.operator == op:
+      # Merge the none operater onto it
+      result = if a.operator == op: a else: b
+      result.conditions &= (if a.operator == op: b else: a)
+    else:
+      result = FilterOperator(
+        operator: op,
+        conditions: @[a, b]
+      )
 
-func `and`(a, b: FilterOperator): FilterOperator =
-  result = FilterOperator(
-    operator: And,
-    conditions: @[a, b]
-  )
+makeOp(`or`, Or)
+makeOp(`and`, And)
 
-func `or`(a, b: FilterOperator): FilterOperator =
-  result = FilterOperator(
-    operator: Or,
-    conditions: @[a, b]
-  )
-
-func `not`(op: FilterOperator): FilterOperator =
+func `not`*(op: FilterOperator): FilterOperator =
   result = FilterOperator(
     operator: Not,
     conditions: @[op]
@@ -160,7 +161,6 @@ func newFilter*(conditions: JsonNode): FilterOperator =
     condition: FilterCondition(conditions)
   )
 
-{.pop.}
 
 const toJOpts = ToJsonOptions(
   enumMode: joptEnumString,
@@ -208,7 +208,6 @@ proc `[]=`*(data: JsonNode, key: string, param: JPar) =
   ## if **param** is a ResultReference_
   # echo param.toJson(toJOpts)
   mixin toJson
-  echo "Converting ", key, " to json"
   data[(if param.isRef and not param.eqNil: "#" else: "") & key] = param.toJson(toJOpts)
 
 proc addParam(data: JsonNode, key: string, param: JPar) {.raises: [].} =

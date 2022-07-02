@@ -8,8 +8,6 @@ import std/[
 
 import anano
 
-
-
 type
   CoreCapabilities* = object
     ## See 'capabilites' section `here <https://jmap.io/spec-core.html#the-jmap-session-resource>`_
@@ -128,6 +126,17 @@ func `[]`*(resp: JMAPResponse, id: string): JsonNode {.raises: [KeyError].} =
         
   if result.len == 0:
     raise (ref KeyError)(msg: id & " was not found in the response")
+
+func ok*(resp: JMAPResponse, id: string): bool =
+  ## Returns true if call associated with ID had no error
+  result = true
+  for invocation in resp.methodResponses:
+    if invocation.id == id and invocation.name == "error":
+      return false
+
+func ok*(resp: JMAPResponse, call: Call): bool =
+  ## Returns true if the call didn't return an error
+  result = resp.ok(call.id)
 
 func `[]`*(resp: JMAPResponse, call: Call): JsonNode {.inline, raises: [KeyError].} =
   ## Gets response data for a call
