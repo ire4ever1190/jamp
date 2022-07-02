@@ -7,7 +7,8 @@ import jamp/[
   client,
   common,
   jsonptr,
-  helpers
+  helpers,
+  methods
 ]
 
 import jamp/specs/[
@@ -21,3 +22,4 @@ export mail
 export helpers
 export json
 export jsonutils
+export methods
