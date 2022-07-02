@@ -2,10 +2,12 @@ import std/[
   json,
   tables,
   jsonutils,
-  sets
+  sets,
+  macros
 ]
 
 import anano
+
 
 
 type
@@ -53,6 +55,7 @@ type
     methodCalls*: seq[Invocation]
 
   ResultReference* = ref object # Made ref so parameters can be nil
+    ## Used to refer to a previous method in the same request
     resultOf*, name*, path*: string
 
   JMAPResponse* = object
@@ -75,7 +78,8 @@ const
   allowedIDCharacters = {'a'..'z'} + {'A'..'Z'} + {'0'..'9'} + {'-', '_'}
 
 # Hooks
-    
+
+# An invocation needs to be an array so we need to make the JSON be an array instead
 proc toJsonHook*(call: Invocation): JsonNode =
   result = newJArray()
   result &= %call.name
@@ -91,7 +95,8 @@ proc fromJsonHook*(call: var Invocation, data: JsonNode) =
 
 # Helpers
 
-func add*(request: var JMAPRequest, call: Call) =
+
+func add*(request: var JMAPRequest, call: Call) {.raises: [].} =
   ## Adds a call to the request.
   ## Automatically adds the needed capabilities to `using`
   runnableExamples:
@@ -106,38 +111,38 @@ func add*(request: var JMAPRequest, call: Call) =
     })
     # Send the request off with the client
   #==#
+  # Don't add the needed if its already present.
+  # Pretty sure the server wont error but saves some bandwidth
   if call.needed notin request.`using`:
     request.`using` &= call.needed
   request.methodCalls &= call.invocation
 
-func `[]`*(resp: JMAPResponse, id: string): Table[string, JsonNode] =
+func `[]`*(resp: JMAPResponse, id: string): JsonNode {.raises: [KeyError].} =
   ## Gets the response data for an ID. If there are multiple responses for the
   ## method then all the returns values are joined together
+  result = newJObject()
   for invocation in resp.methodResponses:
-    for key, value in invocation.arguments:
-      result[key] = value
+    if invocation.id == id:
+      for key, value in invocation.arguments:
+        result[key] = value
+        
+  if result.len == 0:
+    raise (ref KeyError)(msg: id & " was not found in the response")
 
-func id*(call: Call): string {.inline.} =
+func `[]`*(resp: JMAPResponse, call: Call): JsonNode {.inline, raises: [KeyError].} =
+  ## Gets response data for a call
+  result = resp[call.id]
+
+func id*(call: Call): string {.inline, raises: [].} =
   ## Returns invocation ID
   result = call.invocation.id
 
-func reuse*(inv: Invocation, path: string): ResultReference =
-  ## Pass this has a parameter to a JMAP call and it will allow
-  ## you to reuse value from previous call. See **TODO LINK JSONPTR MODULE** for information
-  ## about path
-  result = ResultReference(
-    resultOf: inv.id,
-    name: inv.name,
-    path: path
-  )
 
-func reuse*(call: Call, path: string): ResultReference {.inline.} =
-  ## Helper function for reuse_ for use with Call_
-  result = call.invocation.reuse(path)
 
 proc newInvocation*(name: string, args: sink JsonNode, id = ""): Invocation =
   ## Creates a new invocation.
   ## If you don't provide an ID then it will auto generate one.
+  ##
   ## ID must only contain URL safe characters (A-Za-z0-9_-) and is recommended that it starts
   ## with an alpha character to be safe
   if id != "":
@@ -146,18 +151,17 @@ proc newInvocation*(name: string, args: sink JsonNode, id = ""): Invocation =
     for c in id:
       assert c in allowedIDCharacters, "Invalid character '" & $c & "'"
         
-  assert args.kind == JObject, "args must be a string: Json object"
+  assert args.kind == JObject, "args must be a JSON object"
   result = Invocation(
     name: name,
     arguments: args,
-    
     id: if id != "": id else: ("i" & $genNanoID())
   )
 
-func initCall*[T](needed, name: string, args: sink JsonNode, id = ""): Call[T] =
+proc initCall*[T](needed, name: string, args: sink JsonNode, id = ""): Call[T] =
   ## Creates a new call.
   ##
-  ## * **needed** is the capabilities needed by the server to perform the method
+  ## * **needed** is the capability needed by the server to perform the method
   result = Call[T](
     needed: needed,
     invocation: newInvocation(name, args, id)

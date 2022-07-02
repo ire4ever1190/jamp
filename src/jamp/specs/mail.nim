@@ -7,29 +7,34 @@
   Use this module if you want to perform any mail related operations
 ]##
 
-import std/json
+import std/[json, options, strutils, tables]
 
 import mail/common as mc
 import ../methods
 import ../common
 export mail
 
+
 type
   MailGet* = object of GetResponse[JsonNode]
+
+#
+# Email
+#
 
 using m: typedesc[Email]
 
 proc get*(m; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal, 
           properties: JPar[seq[string]] = @["id"]): Call[MailGet] =
   ## Same as base get.
-  let args = Base.get(accountId, ids, properties)
+  let args = Base.passArgs(get)
   result.needed = mailCapability
   result.invocation = newInvocation(
     "Email/get",
     args
   )
 
-proc query*(m; accountId: JPar[string], filter: JPar[FilterOperator | EmailFilter] = defaultVal,
+proc query*(m; accountId: JPar[string], filter: JPar[FilterOperator] = defaultVal,
             sort: JPar[seq[Comparator]] = defaultVal, position: JPar[int] = 0,
             anchor: JPar[string] = defaultVal, anchorOffset: JPar[int] = 0,
             limit: JPar[uint] = defaultVal, calculateTotal: JPar[bool] = false, 
@@ -38,12 +43,80 @@ proc query*(m; accountId: JPar[string], filter: JPar[FilterOperator | EmailFilte
   ##
   ## * **collapseThreads**: Only one email per thread will be returned if true
   # let args = Base.query[EmailFilter](accountId, filter, sort, position, anchor, anchorOffset, limit, calculateTotal)
-  let args = Base.query(accountId)
+  let args = Base.passArgs(query)
   args["collapseThreads"] = collapseThreads
   result.needed = mailCapability
   result.invocation = newInvocation(
     "Email/query",
     args
   )
+
+proc set*(m; accountId: JPar[string], ifInState: JPar[string] = defaultVal,
+          create: JPar[Table[string, Email]] = defaultVal, update: JPar[Table[string, PatchObject]] = defaultVal, 
+          destroy: JPar[seq[string]] = defaultVal, onDestroyRemoveEmails: JPar[bool] = defaultVal): Call[SetResponse] =
+  let args = Base.passArgs(set)
+  result.needed = mailCapability
+  result.invocation = newInvocation(
+    "Email/set",
+    args
+  )
+
+#
+# Mailbox
+#
+
+type
+  MailboxRight = enum
+    readItems
+    addItems
+    removeItems
+    setSeen
+    setKeywords
+    createChild
+    rename
+    delete
+    submit
+
+  Mailbox* = object
+    id*, name: string
+    parentId*, role*: Option[string]
+    sortOrder*, totalEmails*, unreadEmails*, totalThreads*, unreadThreads*: uint
+    myRights*: set[MailboxRight]
+    isSubscribed*: bool
+
+func fromJson*(rights: var set[MailboxRight], data: JsonNode) =
+  for right in MailboxRight:
+    let key = "may" & capitalizeAscii($right)
+    if key in data:
+      rights.incl right
+
+using mb: typedesc[Mailbox]
+
+
+proc get*(mb; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal, 
+          properties: JPar[seq[string]] = @["id"]): Call[Mailbox] =
+  let args = Base.passArgs(get)
+  result.needed = mailCapability
+  result.invocation = newInvocation(
+    "Mailbox/get",
+    args
+  )
+  
+proc query*(mb; accountId: JPar[string], filter: JPar[FilterOperator | EmailFilter] = defaultVal,
+            sort: JPar[seq[Comparator]] = defaultVal, position: JPar[int] = 0,
+            anchor: JPar[string] = defaultVal, anchorOffset: JPar[int] = 0,
+            limit: JPar[uint] = defaultVal, calculateTotal: JPar[bool] = false,
+            sortAsTree: JPar[bool] = false, filterAsTree: JPar[bool] = false): Call[QueryResponse] =
+  let args = Base.passArgs(query)
+  args.addParams(sortAsTree, filterAsTree)
+  result.needed = mailCapability
+  result.invocation = newInvocation(
+    "Mailbox/query",
+    args
+  )
+
+
+  
+
 
 export mc

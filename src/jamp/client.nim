@@ -4,7 +4,8 @@ import std/[
   base64,
   json,
   tables,
-  jsonutils
+  jsonutils,
+  uri
 ]
 
 import common
@@ -14,8 +15,9 @@ type
   BaseJMAPClient[T: HttpClient or AsyncHttpClient] = ref object
     ## Stores the information about the connection to the server 
     http: T 
-    session: Session
-    hostname, username*, password: string
+    session*: Session
+    host*: string
+    username*, password*: string
 
   JMAPClient*      = BaseJMApClient[HttpClient]
   AsyncJMAPClient* = BaseJMAPClient[AsyncHttpClient]
@@ -24,13 +26,14 @@ template obj[T: ref object](x: typedesc[T]): untyped = typeof(x()[])
 
 proc `=destroy`(client: var JMAPClient.obj) =
   client.http.close()
+  
 proc `=destroy`(client: var AsyncJMAPClient.obj) =
   client.http.close()
 
 
 const userAgent = "Jamp/0.1.0"
 
-proc newBaseClient[T](username, password: string, hostname = ""): BaseJMAPClient[T] =
+proc newBaseClient[T](username, password: string, host: string): BaseJMAPClient[T] =
   result = new BaseJMAPClient[T]
   result.username = username
   result.password = password
@@ -42,35 +45,34 @@ proc newBaseClient[T](username, password: string, hostname = ""): BaseJMAPClient
       newHttpClient(userAgent, headers = defaultHeaders) 
     else:
       newAsyncHttpClient(userAgent, headers = defaultHeaders)
-      
-  if hostname != "":
-    result.hostname = hostname
-
+  result.host = host      
+  # if result.host.port == "":
+    # result.host.port = "443"
+  # if result.path != "" and result.
+  # if result.host.scheme == "":
+    # result.host.scheme = "https"
   
-proc newJMAPClient*(username, password: string, hostname = ""): JMAPClient =
+  
+proc newJMAPClient*(username, password: string, hostname: string): JMAPClient =
   ## Creates a new JMAP client. If hostname is left blank then it 
   ## will try and auto discover the hostname (This may fail)
   result = newBaseClient[HttpClient](username, password, hostname)
 
-proc newAsyncHttpClient*(username, password: string, hostname = ""): AsyncJMAPClient =
+proc newAsyncHttpClient*(username, password: string, hostname: string): AsyncJMAPClient =
   result = newBaseClient[AsyncHttpClient](username, password, hostname)
-
-func url(client: BaseJMAPClient, path: string): string =
-  ## Makes a URL with the clients hostname and a path.
-  ## Path must be prefixed with /
-  result = "https://"
-  result &= client.hostname
-  result &= path
   
 proc startSession*(client: JMAPClient | AsyncJMAPClient) {.multisync.} =
   ## Creates the session to the server.
   ## Must be called before anything else so that the client is
   ## authenticated
-  let resp = await client.http.request(client.url("/.well-known/jmap"))
-  client.session = resp.body.await().parseJson().to(Session)
-
+  let resp = await client.http.request("https://" & client.host & "/.well-known/jmap")
+  try:
+    client.session = resp.body.await().parseJson().to(Session)
+  except JsonParsingError:
+    raise (ref IOError)(msg: await resp.body)
 func `$`*(req: JMAPRequest): string =
-  $req.toJson()
+  req.toJson().pretty()
+
 
 proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JMAPResponse] {.multisync.} =
   ## Perform a raw request to the JMAP server
@@ -79,10 +81,11 @@ proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JM
   let body = await resp.body()
   if resp.code.is2xx:
     let j = resp.body.await().parseJson()
-    echo j.pretty()
     result.fromJson(j, JOptions(
       allowExtraKeys: true,
       allowMissingKeys: false
     ))
   else:
     raise (ref JMAPError)(msg: body)
+
+export uri

@@ -1,10 +1,10 @@
 import jamp/methods
+import jamp/specs/mail
 import jamp/common
+import jamp/jsonptr
 import unittest
 import std/options
 import json
-
-# Test that the jmapMethod macro generates correct code
 
 test "Normal parameters":
   check Base.get("1234", @["1", "2"]) == %* {
@@ -15,35 +15,17 @@ test "Normal parameters":
 
 test "addParam":
   var
-    foo = %"hello"
-    fooIsRef = true
+    foo = ResultReference()
     data = newJObject()
     
-  data.addParam(foo, foo)
+  data["foo"] = foo
   assert "#foo" in data
 
-  fooIsRef = false
-  data.addParam(foo, foo)
-  assert "foo" in data
-  
-  fooIsRef = true
-  data.addParam(foo)
-  assert "#foo" in data
+  data["test"] = true
+  assert "test" in data
 
-test "Call with pass":
-  type
-    Foo = object
-  proc bar(_: typedesc[Foo], x, b: int, l: string) = 
-    check:
-      x == 9
-      b == 4
-      l == "foo"
-  let
-    x = 9
-    b = 4
-    l = "foo"
-  callWithPass(Foo, bar)
-
+  data["default"] = JPar[string](defaultVal)
+  assert "default" in data
 
 test "Passing reference to previous result":
   check Base.get("1234", ResultReference(

@@ -20,19 +20,15 @@ import std/[
   tables,
   json,
   jsonutils,
-  macros,
-  genasts
+  macros
 ]
 
 import common
 
 type
-  # JPar*[T] = object
   JPar*[T: not ResultReference] = T or ResultReference
     ## Means that the parameter can either be `T` or a reference to the result
     ## of another method
-    # data: JsonNode
-    # isRef: bool
 
   GetResponse*[T] = ref object of RootObj
     ## Basic response from a **get** method, contains list of records retrieved.
@@ -122,17 +118,23 @@ type
     of Just:
       condition: FilterCondition
 
-  FilterCondition = distinct JsonNode
+  FilterCondition* = distinct JsonNode
     ## Spec defined properties that can be used for conditions
     # Is a distinct JsonNode since the objects are semi complex and basically entirely Option[T]
     # Also means we can define helpers without knowing what the Condition will look like
+
+  PatchObject* = Table[string, JsonNode]
     
   Base* = object
     ## Namespace for default methods
 
+{.experimental: "dynamicBindSym".} 
+
 using _: typedesc[Base]
 
 # Filter operator helpers
+
+{.push raises: [].}
 
 func `and`(a, b: FilterOperator): FilterOperator =
   result = FilterOperator(
@@ -152,20 +154,43 @@ func `not`(op: FilterOperator): FilterOperator =
     conditions: @[op]
   )
 
+func newFilter*(conditions: JsonNode): FilterOperator =
+  FilterOperator(
+    operator: Just,
+    condition: FilterCondition(conditions)
+  )
 
-func initComparator*(property: string, isAscending = true, collation = ""): Comparator = 
+{.pop.}
+
+const toJOpts = ToJsonOptions(
+  enumMode: joptEnumString,
+  jsonNodeMode: joptJsonNodeAsRef
+)
+
+func toJsonHook*(op: FilterOperator): JsonNode =
+  case op.operator
+  of Just:
+    result = op.condition.JsonNode
+  else:
+    result = newJObject()
+    result["operator"] = %op.operator
+    result["conditions"] = op.conditions.toJson(toJOpts)
+
+func initComparator*(property: string, isAscending = true, collation = ""): Comparator {.raises: [].} = 
   ## Creates a new comparator to be used in JMAP methods
   result.property = property
   result.isAscending = isAscending
   if collation != "":
     result.collation = some collation
 
-func isRef*(param: JPar): static[bool] =
+
+
+template isRef*(param: JPar): bool =
   ## Returns true if **param** is a ResultReference_
-  result = param is ResultReference
+  param is ResultReference
 
 # Can't call it `isNil` since then it would resolve to systems isNil instead and error
-func eqNil*(param: JPar): bool {.inline.} =
+func eqNil*(param: JPar): bool {.inline, raises: [].} =
   ## Returns true if **param** is `nil`.
   ## If `T` is a non nillable type (e.g. `string`) then it always returns false
   runnableExamples:
@@ -177,22 +202,48 @@ func eqNil*(param: JPar): bool {.inline.} =
   else:
     result = false
 
-const toJOpts = ToJsonOptions(
-  enumMode: joptEnumString,
-  jsonNodeMode: joptJsonNodeAsRef
-)
 
 proc `[]=`*(data: JsonNode, key: string, param: JPar) =
   ## Adds a param to the data. This automatically prefixes the key with `#`
   ## if **param** is a ResultReference_
+  # echo param.toJson(toJOpts)
+  mixin toJson
+  echo "Converting ", key, " to json"
   data[(if param.isRef and not param.eqNil: "#" else: "") & key] = param.toJson(toJOpts)
 
-proc addParam(data: JsonNode, key: string, param: JPar) =
+proc addParam(data: JsonNode, key: string, param: JPar) {.raises: [].} =
   data[key] = param
 
-#
-# Base versions
-# 
+macro passArgs*(ns: typedesc, name: typed): JsonNode =
+  ## Passes variables from current proc into another. Useful for calling base methods
+  runnableExamples:
+    type Foo = object
+
+    proc get*(_: typedesc[Foo]; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal, 
+              properties: JPar[seq[string]] = @["id"]): Call[string] =
+      let args = Base.passArgs(get)
+      # Add extra params if needed
+      result.invocation = newInvocation(
+        "Foo/get",
+        args
+      )
+  #==#
+  var prc = newEmptyNode()
+  # Force the symbol to be a closed choice and then look for the proc  
+  let toLookup = (if name.kind == nnkSym: bindSym(ident $name) else: name)
+  for possible in toLookup:
+    let params = possible.getImpl()[2]
+    if params.len > 0:
+      for param in params:
+        let kind = param.getType()
+        if kind.kind == nnkBracketExpr and kind[1].eqIdent(ns):
+          prc = possible
+          break
+          
+  assert prc.kind != nnkEmpty, "Couldn't find " & $name & " for " & $ns
+  result = nnkCall.newTree(prc, ns)
+  for param in prc.getImpl().params[2..^1]:
+    result &= ident($param[0])
 
 macro addParams*(data: JsonNode, params: varargs[untyped]) =
   ## Adds multiple params to **data** with their key being the name of the paramter
@@ -209,16 +260,22 @@ macro addParams*(data: JsonNode, params: varargs[untyped]) =
   #==#
   result = newStmtList()
   let sym = bindSym("addParam")
-  echo sym.treeRepr
   for param in params:
     let key = newLit $param
     result.add quote do:
       `data`[`key`] = `param`
-  echo result.toStrLit
+
+#
+# Base versions
+# 
+
+
 
 const defaultVal* = ResultReference(nil)
   ## Use this to specify that the server should use the default value for the parameter
   # I ran into a compiler error if I used nil so I instead use this which doesn't error =)
+
+# {.push raises: [].}
 
 proc get*(_; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal, 
           properties: JPar[seq[string]] = @["id"]): JsonNode =
@@ -247,8 +304,17 @@ proc query*(_; accountId: JPar[string], filter: JPar[FilterOperator] = defaultVa
   ## * **anchorOffset**: Offset from **anchor** to start results at
   ## * **calculateTotal**: Returns total amount of items in response. Is slow for large data/filters so be careful
   result = newJObject()
-  result["filter"] = %filter
   result.addParams(accountId, filter, sort, position, anchor, anchorOffset, limit, calculateTotal)
 
+proc set*(_; accountId: JPar[string], ifInState: JPar[string] = defaultVal,
+          create: JPar[Table[string, JsonNode]], update: JPar[Table[string, PatchObject]], 
+          destroy: JPar[seq[string]]): JsonNode =
+  ## Used to create, update, and destroy records of a certain type
+  result = newJObject()
+  result.addParams(accountId, ifInState, create, update, destroy)
 
+# {.pop.};
+  
 export toJson
+export json
+export tables
