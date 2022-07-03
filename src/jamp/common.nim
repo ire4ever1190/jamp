@@ -98,7 +98,6 @@ func add*(request: var JMAPRequest, call: Call) {.raises: [].} =
   ## Adds a call to the request.
   ## Automatically adds the needed capabilities to `using`
   runnableExamples:
-    import jmap/specs/core
     var req: JMAPRequest
     # Build the request with your needed calls
     req &= Core.echo(%* {

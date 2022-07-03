@@ -12,13 +12,15 @@ import jamp/[
 ]
 
 import jamp/specs/[
-  mail
+  mail,
+  core
 ]
 
 export jsonptr
 export client
 export common
 export mail
+export core
 export helpers
 export json
 export jsonutils
