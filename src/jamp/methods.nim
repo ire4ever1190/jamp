@@ -194,8 +194,8 @@ func eqNil*(param: JPar): bool {.inline, raises: [].} =
   ## Returns true if **param** is `nil`.
   ## If `T` is a non nillable type (e.g. `string`) then it always returns false
   runnableExamples:
-    assert JPar[string](nil).eqNil
     assert not JPar[string]("string").eqNil
+    assert JPar[string](defaultVal).eqNil
   #==#
   when compiles(param == nil):
     result = param == nil
@@ -215,7 +215,9 @@ proc addParam(data: JsonNode, key: string, param: JPar) {.raises: [].} =
 
 macro passArgs*(ns: typedesc, name: typed): JsonNode =
   ## Passes variables from current proc into another. Useful for calling base methods
-  runnableExamples:
+  runnableExamples "-d:ssl":
+    import jamp
+    
     type Foo = object
 
     proc get*(_: typedesc[Foo]; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal, 
@@ -246,8 +248,10 @@ macro passArgs*(ns: typedesc, name: typed): JsonNode =
 
 macro addParams*(data: JsonNode, params: varargs[untyped]) =
   ## Adds multiple params to **data** with their key being the name of the paramter
-  runnableExamples:
+  runnableExamples "-d:ssl":
+    import jamp
     import std/json
+    
     let
       name: JPar[string] = "hello"
       age: JPar[int] = ResultReference()

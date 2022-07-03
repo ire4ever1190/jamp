@@ -9,13 +9,17 @@
 
 import std/[json, options, strutils, tables]
 
-import mail/common as mc
 import ../methods
 import ../common
-export mail
 
+const
+  mailCapability* = "urn:ietf:params:jmap:mail"
+  submissionCapability* = "urn:ietf:params:jmap:submission"
+  vacationCapability* = "urn:ietf:params:jmap:vacationresponse"
 
 type
+  Email* = object
+  EmailFilter* = object
   MailGet* = object of GetResponse[JsonNode]
 
 #
@@ -119,4 +123,3 @@ proc query*(mb; accountId: JPar[string], filter: JPar[FilterOperator | EmailFilt
   
 
 
-export mc

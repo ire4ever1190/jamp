@@ -25,10 +25,12 @@ func reuse*(inv: Invocation, path: string): ResultReference {.raises: [].} =
 
 func reuse*(call: Call, path: string): ResultReference {.inline, raises: [].} =
   ## Helper function for reuse_ for use with Call_
-  runnableExamples:
+  runnableExamples "-d:ssl":
+    import jamp
     let
-      query = Mail.query("1234")
-      get = Mail.get(
+      query = Email.query("1234")
+      get = Email.get(
+        "1234",
         ids = query.reuse("/ids/*")
       )
   #==#
@@ -36,10 +38,11 @@ func reuse*(call: Call, path: string): ResultReference {.inline, raises: [].} =
 
 macro reuseIt*(call: Call, path: untyped): ResultReference =
   ## Like reuse_ except the type is automatically passed in to a call to point_
-  runnableExamples:
+  runnableExamples "-d:ssl":
+    import jamp
     let 
-      query = Mail.query("1234")
-      get = Mail.get(
+      query = Email.query("1234")
+      get = Email.get(
         "1234",
         ids = query.reuseIt(ids[])
       )
@@ -67,7 +70,7 @@ macro props*(x: typedesc, props: varargs[untyped]): seq[string] =
         name: string
         age: int
         alive: bool
-    assert Person.props(name, alive, age) == @["name", "age", "alive"]
+    assert Person.props(name, alive, age) == @["name", "alive", "age"]
   #==#
   let obj = x.getFullType()
   var stringArr = nnkBracket.newTree()

@@ -97,7 +97,8 @@ proc fromJsonHook*(call: var Invocation, data: JsonNode) =
 func add*(request: var JMAPRequest, call: Call) {.raises: [].} =
   ## Adds a call to the request.
   ## Automatically adds the needed capabilities to `using`
-  runnableExamples:
+  runnableExamples "-d:ssl":
+    import jamp
     var req: JMAPRequest
     # Build the request with your needed calls
     req &= Core.echo(%* {
