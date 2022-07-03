@@ -42,3 +42,50 @@ test "Passing reference to previous result":
     "properties": @["id"]
   }
 
+suite "Filter operators":
+  # OR and AND use a template for implementation so they work the same
+  test "OR two conditions":
+    let filter = newFilter(%* {"foo": "bar"}) or newFilter(%* {"hello": "world"})
+    check:
+      filter.operator == Or
+      filter.conditions.len == 2
+
+  test "OR filter and condition":
+    var filter = newFilter(%* {"foo": "bar"}) or newFilter(%* {"hello": "world"})
+    filter = filter or newFilter(%* {"a": "b"})
+    check:
+      filter.operator == Or
+      filter.conditions.len == 3
+
+  test "OR two OR filters":
+    var 
+      filterA = newFilter(%* {"foo": "bar"}) or newFilter(%* {"hello": "world"})
+      filterB = newFilter(%* {"bar": "baz"}) or newFilter(%* {"another": "one"})
+      filter = filterA or filterB
+      
+    check:
+      filter.operator == Or
+      filter.conditions.len == 2
+      filter.conditions[0] == filterA
+      filter.conditions[1] == filterB
+      
+  test "OR AND & OR filters":
+    var 
+      filterA = newFilter(%* {"foo": "bar"}) or newFilter(%* {"hello": "world"})
+      filterB = newFilter(%* {"bar": "baz"}) and newFilter(%* {"another": "one"})
+      filter = filterA or filterB
+      
+    check:
+      filter.operator == Or
+      filter.conditions.len == 2
+      filter.conditions[0] == filterA
+      filter.conditions[1] == filterB
+
+  test "NOT condition":
+    let
+      condition = newFilter(%* {"foo": "bar"})
+      filter = not condition
+
+    check:
+      filter.operator == Not
+      filter.conditions[0] == condition

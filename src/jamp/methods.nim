@@ -136,7 +136,7 @@ using _: typedesc[Base]
 
 template makeOp(name: untyped, op: Operator) =
   func name*(a, b: FilterOperator): FilterOperator =
-    if a.operator == op xor b.operator == op:
+    if (a.operator == Just and b.operator == op) or (a.operator == op and b.operator == Just):
       # Merge the none operater onto it
       result = if a.operator == op: a else: b
       result.conditions &= (if a.operator == op: b else: a)
