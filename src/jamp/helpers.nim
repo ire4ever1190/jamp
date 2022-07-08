@@ -6,6 +6,7 @@ import std/[
 
 import common
 import utils
+import jsonptr
 
 
 ##[
@@ -37,7 +38,8 @@ func reuse*(call: Call, path: string): ResultReference {.inline, raises: [].} =
   result = call.invocation.reuse(path)
 
 macro reuseIt*(call: Call, path: untyped): ResultReference =
-  ## Like reuse_ except the type is automatically passed in to a call to point_
+  ## Like reuse_ except it passes the path to the point_ macro with the
+  ## return type of the call to make it more typesafe
   runnableExamples "-d:ssl":
     import jamp
     let 
@@ -50,7 +52,7 @@ macro reuseIt*(call: Call, path: untyped): ResultReference =
   result = newCall(
     ident"reuse",
     call,
-    newCall("point", nnkDotExpr.newTree(call, ident"T"), path)
+    newCall(bindSym"point", nnkDotExpr.newTree(call, ident"T"), path)
   )
 
 proc formatDate*(date: DateTime): string =

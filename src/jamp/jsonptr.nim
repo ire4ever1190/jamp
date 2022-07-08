@@ -52,7 +52,7 @@ func pointerReplacements(x: string): string =
     ("/", "~1")
   )
 
-func makePoint*(curr: NimNode): seq[PointNode] =
+func makePoint(curr: NimNode): seq[PointNode] =
   ## Goes through all the parameter accesses and flattens it down
   ## into a sequence to make it easier to work with
   if curr.kind != nnkDotExpr:
@@ -128,9 +128,8 @@ macro point*(kind: typedesc, path: untyped): string =
         else:
           newEmptyNode()
     if comp.name.kind == nnkIdent and param.isEmpty():
-      # TODO: Specify the object it is trying to get the parameter for
-      # Might not be possible?
-      ($comp.name & " doesn't exist for object").error(comp.name)
+      # TODO: Remove :ObjectType from ref objects
+      ($comp.name & " doesn't exist for " & $curr.getTypeInst.toStrLit).error(comp.name)
     case comp.kind
     of Index:
       if paramType.kind != nnkBracketExpr or not paramType[0].eqIdent("seq"):

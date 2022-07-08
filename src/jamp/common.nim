@@ -54,6 +54,10 @@ type
 
   ResultReference* = ref object # Made ref so parameters can be nil
     ## Used to refer to a previous method in the same request
+    ##
+    ## * **resultOf**: ID of the call to reference
+    ## * **name**: Name of the call e.g. `"Core/Echo"`
+    ## * **path**: [json pointer](jsonptr.html) of the value to reuse
     resultOf*, name*, path*: string
 
   JMAPResponse* = object
@@ -61,6 +65,10 @@ type
     sessionState*: string
 
   JMAPError* = object of CatchableError
+
+  CallFailed* = object of JMAPError
+    ## Raised if trying to access a call which failed. Check with ok_ first
+    ## before accessing call to avoid
 
   UnknownCapabilityError* = object of JMAPError
     ## The client included a capability in the “using” property of the request that the server does not support.
@@ -115,6 +123,7 @@ func add*(request: var JMAPRequest, call: Call) {.raises: [].} =
     request.`using` &= call.needed
   request.methodCalls &= call.invocation
 
+# TODO: Raise error if call failed (Have {} which returns JNull if failed)
 func `[]`*(resp: JMAPResponse, id: string): JsonNode {.raises: [KeyError].} =
   ## Gets the response data for an ID. If there are multiple responses for the
   ## method then all the returns values are joined together
@@ -126,6 +135,7 @@ func `[]`*(resp: JMAPResponse, id: string): JsonNode {.raises: [KeyError].} =
         
   if result.len == 0:
     raise (ref KeyError)(msg: id & " was not found in the response")
+
 
 func ok*(resp: JMAPResponse, id: string): bool =
   ## Returns true if call associated with ID had no error
@@ -170,7 +180,8 @@ proc newInvocation*(name: string, args: sink JsonNode, id = ""): Invocation =
 proc initCall*[T](needed, name: string, args: sink JsonNode, id = ""): Call[T] =
   ## Creates a new call.
   ##
-  ## * **needed** is the capability needed by the server to perform the method
+  ## * **needed**: Is the capability needed by the server to perform the method
+  ## * **id**: ID to use for the call. If blank then a random one is generated
   result = Call[T](
     needed: needed,
     invocation: newInvocation(name, args, id)

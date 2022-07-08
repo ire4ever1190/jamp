@@ -7,6 +7,7 @@
 ### Implemented
 - [x] Core
 - [ ] Mail
+- [ ] Push
 - [ ] WebSocket
 
 Specifications that I'm waiting to be finished before implementing

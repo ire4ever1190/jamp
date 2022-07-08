@@ -59,6 +59,7 @@ proc newJMAPClient*(username, password: string, hostname: string): JMAPClient =
   result = newBaseClient[HttpClient](username, password, hostname)
 
 proc newAsyncHttpClient*(username, password: string, hostname: string): AsyncJMAPClient =
+  ## see newJMAPClient_
   result = newBaseClient[AsyncHttpClient](username, password, hostname)
   
 proc startSession*(client: JMAPClient | AsyncJMAPClient) {.multisync.} =
@@ -70,6 +71,7 @@ proc startSession*(client: JMAPClient | AsyncJMAPClient) {.multisync.} =
     client.session = resp.body.await().parseJson().to(Session)
   except JsonParsingError:
     raise (ref IOError)(msg: await resp.body)
+
 func `$`*(req: JMAPRequest): string =
   req.toJson().pretty()
 
@@ -85,6 +87,10 @@ proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JM
       allowExtraKeys: true,
       allowMissingKeys: false
     ))
+  elif resp.headers["Content-Type"] == "application/json":
+    # If its JSON then we can get a better error msg
+    let j = resp.body.await().parseJson()
+    raise (ref JMAPError)(msg: j["detail"].str)
   else:
     raise (ref JMAPError)(msg: body)
 

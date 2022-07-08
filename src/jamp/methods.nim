@@ -150,12 +150,15 @@ makeOp(`or`, Or)
 makeOp(`and`, And)
 
 func `not`*(op: FilterOperator): FilterOperator =
+  ## Makes filter do opposite of what it does
   result = FilterOperator(
     operator: Not,
     conditions: @[op]
   )
 
 func newFilter*(conditions: JsonNode): FilterOperator =
+  ## Creates new filter using conditions given. Should be checked
+
   FilterOperator(
     operator: Just,
     condition: FilterCondition(conditions)
@@ -206,12 +209,8 @@ func eqNil*(param: JPar): bool {.inline, raises: [].} =
 proc `[]=`*(data: JsonNode, key: string, param: JPar) =
   ## Adds a param to the data. This automatically prefixes the key with `#`
   ## if **param** is a ResultReference_
-  # echo param.toJson(toJOpts)
   mixin toJson
   data[(if param.isRef and not param.eqNil: "#" else: "") & key] = param.toJson(toJOpts)
-
-proc addParam(data: JsonNode, key: string, param: JPar) {.raises: [].} =
-  data[key] = param
 
 macro passArgs*(ns: typedesc, name: typed): JsonNode =
   ## Passes variables from current proc into another. Useful for calling base methods
