@@ -261,7 +261,6 @@ macro addParams*(data: JsonNode, params: varargs[untyped]) =
     assert "#age" in data
   #==#
   result = newStmtList()
-  let sym = bindSym("addParam")
   for param in params:
     let key = newLit $param
     result.add quote do:
