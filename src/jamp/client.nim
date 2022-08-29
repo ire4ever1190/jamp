@@ -59,7 +59,9 @@ proc startSession*(client: JMAPClient | AsyncJMAPClient) {.multisync.} =
   ## Creates the session to the server.
   ## Must be called before anything else so that the client is
   ## authenticated
-  let resp = await client.http.request("https://" & client.host & "/.well-known/jmap")
+  var extraHeaders = newHttpHeaders()
+  client.auth(extraHeaders)
+  let resp = await client.http.request("https://" & client.host & "/.well-known/jmap", headers = extraHeaders)
   try:
     client.session = resp.body.await().parseJson().to(Session)
   except JsonParsingError:
@@ -87,6 +89,8 @@ proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JM
       allowExtraKeys: true,
       allowMissingKeys: false
     ))
+  elif resp.code == Http401:
+    raise (ref JMAPError)(msg: "Authorization required, check details are correct")
   elif resp.headers["Content-Type"] == "application/json":
     # If its JSON then we can get a better error msg
     let j = resp.body.await().parseJson()
