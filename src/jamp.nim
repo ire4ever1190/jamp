@@ -35,7 +35,7 @@
 
 runnableExamples "-d:ssl -r:off":
   import jamp
-  let client = newJMAPClient("our@email.com", "password", "host")
+  let client = newJMAPClient(basicAuth("our@email.com", "password"), "host")
   client.startSession()
   let
     query = Email.query("1234")
@@ -63,7 +63,8 @@ import jamp/[
   common,
   jsonptr,
   helpers,
-  methods
+  methods,
+  auth
 ]
 
 import jamp/specs/[
@@ -80,3 +81,4 @@ export helpers
 export json
 export jsonutils
 export methods
+export auth
