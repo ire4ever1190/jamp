@@ -8,7 +8,7 @@ import std/[
   uri
 ]
 
-import common
+import common, auth
 
 
 type
@@ -17,7 +17,7 @@ type
     http: T 
     session*: Session
     host*: string
-    username*, password*: string
+    auth: AuthHandler
 
   JMAPClient*      = BaseJMApClient[HttpClient]
   AsyncJMAPClient* = BaseJMAPClient[AsyncHttpClient]
@@ -33,35 +33,28 @@ proc `=destroy`(client: var AsyncJMAPClient.obj) =
 
 const userAgent = "Jamp/0.1.0"
 
-proc newBaseClient[T](username, password: string, host: string): BaseJMAPClient[T] =
+proc newBaseClient[T](auth: AuthHandler, host: string): BaseJMAPClient[T] =
   result = new BaseJMAPClient[T]
-  result.username = username
-  result.password = password
+  result.auth = auth
   let defaultHeaders = newHttpHeaders {
-    "Authorization": "Basic " & encode(username & ":" & password),
     "Content-Type": "application/json"
   }
   result.http = when T is HttpClient:
       newHttpClient(userAgent, headers = defaultHeaders) 
     else:
       newAsyncHttpClient(userAgent, headers = defaultHeaders)
-  result.host = host      
-  # if result.host.port == "":
-    # result.host.port = "443"
-  # if result.path != "" and result.
-  # if result.host.scheme == "":
-    # result.host.scheme = "https"
+  result.host = host
   
-  
-proc newJMAPClient*(username, password: string, hostname: string): JMAPClient =
+proc newJMAPClient*(auth: AuthHandler, hostname: string): JMAPClient =
   ## Creates a new JMAP client. If hostname is left blank then it 
   ## will try and auto discover the hostname (This may fail)
-  result = newBaseClient[HttpClient](username, password, hostname)
+  result = newBaseClient[HttpClient](auth, hostname)
 
-proc newAsyncHttpClient*(username, password: string, hostname: string): AsyncJMAPClient =
+proc newAsyncHttpClient*(auth: AuthHandler, hostname: string): AsyncJMAPClient =
   ## see newJMAPClient_
-  result = newBaseClient[AsyncHttpClient](username, password, hostname)
-  
+  result = newBaseClient[AsyncHttpClient](auth, hostname)
+
+
 proc startSession*(client: JMAPClient | AsyncJMAPClient) {.multisync.} =
   ## Creates the session to the server.
   ## Must be called before anything else so that the client is
@@ -79,7 +72,14 @@ func `$`*(req: JMAPRequest): string =
 proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JMAPResponse] {.multisync.} =
   ## Perform a raw request to the JMAP server
   assert client.session.state != "", "Session doesn't exist. You might've forgotten to call startSession()"
-  let resp = await client.http.request(client.session.apiUrl, HttpPost, body = $req.toJson())
+  var extraHeaders = newHttpHeaders()
+  client.auth(extraHeaders)
+  let resp = await client.http.request(
+    client.session.apiUrl,
+    HttpPost,
+    body = $req.toJson(),
+    headers = extraHeaders
+  )
   let body = await resp.body()
   if resp.code.is2xx:
     let j = resp.body.await().parseJson()
