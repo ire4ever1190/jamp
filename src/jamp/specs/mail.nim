@@ -22,7 +22,7 @@ const
 type
   Email* = object
   EmailFilter* = object
-  MailGet* = object of GetResponse[JsonNode]
+  MailGet* = GetResponse[JsonNode]
 
 #
 # Email

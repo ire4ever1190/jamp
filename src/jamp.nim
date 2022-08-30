@@ -34,7 +34,8 @@
 ]##
 
 runnableExamples "-d:ssl -r:off":
-  import jamp
+  import std/sequtils
+  
   let client = newJMAPClient(basicAuth("our@email.com", "password"), "host")
   client.startSession()
   let
@@ -50,8 +51,7 @@ runnableExamples "-d:ssl -r:off":
   # We can get our values back using the calls
   assert resp.ok(query)
   assert resp.ok(get)
-  echo resp[query]
-  echo resp[get]
+  echo "Total emails: ", resp[query].ids.len
 
 when not defined(ssl):
   {.error: "JAMP requires ssl to be enabled (via -d:ssl or switch(\"d\", \"ssl\"))".}
