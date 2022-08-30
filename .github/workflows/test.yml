@@ -27,15 +27,11 @@ jobs:
       
     - if: ${{ steps.cache-image.outputs.cache-hit != 'true' }}
       name: Build image
-      run: |
-        podman build --tag mail-memory --output type=tar,dest=/tmp/image.tar tests/image/
+      run: podman build --tag mail-memory tests/image/
 
-    # - name: Upload artifact
-      # uses: actions/upload-artifact@v3
-      # with:
-        # name: tmailImage
-        # path: /tmp/image.tar
-        # retention-days: 1
+    - if: ${{ steps.cache-image.outputs.cache-hit != 'true' }}
+      name: Save iamge
+      run: podman save mail-memory -o /tmp/image.tar
         
   test:
     needs: buildImage
