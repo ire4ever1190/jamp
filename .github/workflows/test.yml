@@ -6,7 +6,7 @@ on: [push, pull_request]
 jobs:
   buildImage:
     name: Mail server image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - name: Cache image
       id: cache-image
@@ -40,7 +40,7 @@ jobs:
   test:
     needs: buildImage
     timeout-minutes: 10
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         nim: ['1.6.0', 'stable', 'devel' ]
