@@ -1,0 +1,13 @@
+Return-Path: <user@example.com>
+Delivered-To: alice@localhost
+From: <user@example.com>
+To: <alice@localhost>
+Subject: Header test
+Date: Thu, 16 Jun 2022 19:58:19 +0800
+Message-ID: <7654321@message-id.example.com>
+custom-header: test
+MIME-Version: 1.0
+Content-Type:text/plain; charset=utf-8
+Content-Transfer-Encoding: 7bit
+
+Hello, World!
