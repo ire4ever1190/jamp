@@ -8,6 +8,9 @@ jobs:
     name: Mail server image
     runs-on: ubuntu-22.04
     steps:
+    - name: Setup environment
+      uses: actions/checkout@master
+      
     - name: Cache image
       id: cache-image
       uses: actions/cache@v1
@@ -21,9 +24,6 @@ jobs:
         wget http://ftp.us.debian.org/debian/pool/main/libp/libpod/podman_4.2.0+ds1-3_amd64.deb
         sudo dpkg -i podman_4.2.0+ds1-3_amd64.deb
         
-    - if: ${{ steps.cache-image.outputs.cache-hit != 'true' }}
-      name: Setup environment
-      uses: actions/checkout@master
       
     - if: ${{ steps.cache-image.outputs.cache-hit != 'true' }}
       name: Build image
@@ -49,15 +49,14 @@ jobs:
 
     name: Nim ${{ matrix.nim }}
     steps:
+    - name: Setup Nim Enviroment
+      uses: actions/checkout@master
     - name: Cache choosenim
       id: cache-choosenim
       uses: actions/cache@v1
       with:
         path: ~/.nimble
         key: ${{ runner.os }}-nimble-${{ matrix.nim }}-${{ hashFiles('jamp.nimble') }}
-        
-    - name: Setup Nim Enviroment
-      uses: actions/checkout@master
     - uses: jiro4989/setup-nim-action@v1
       with:
           nim-version: ${{ matrix.nim }}
