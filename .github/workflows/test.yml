@@ -4,7 +4,40 @@ on: [push, pull_request]
   
 
 jobs:
+  buildImage:
+    name: Mail server image
+    steps:
+    - name: Cache image
+      id: cache-image
+      uses: actions/cache@v1
+      with:
+        path: /tmp/image.tar
+        key: ${{ runner.os }}-${{ hashFiles('tests/image/Dockerfile') }}
+
+    - if: ${{ steps.cache-image.outputs.cache-hit != 'true' }}
+      name: Install podman
+      run: |
+        sudo apt update
+        sudo apt -y install podman
+        
+    - if: ${{ steps.cache-image.outputs.cache-hit != 'true' }}
+      name: Setup environment
+      uses: actions/checkout@master
+      
+    - if: ${{ steps.cache-image.outputs.cache-hit != 'true' }}
+      name: Build image
+      run: |
+        podman build --tag mail-memory --output type=tar,dest=/tmp/image.tar tests/image/
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: tmailImage
+        path: /tmp/image.tar
+        retention-days: 1
+        
   test:
+    needs: buildImage
     timeout-minutes: 5
     runs-on: ubuntu-latest
     strategy:
@@ -27,6 +60,7 @@ jobs:
     - uses: jiro4989/setup-nim-action@v1
       with:
           nim-version: ${{ matrix.nim }}
+          
     - name: Update nimble
       run: nimble update
 
@@ -35,8 +69,14 @@ jobs:
         sudo apt update
         sudo apt -y install podman
 
-    - name: Build container
-      run: nimble buildContainer
+    - name: Download artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: tmailImage
+        path: /tmp
+
+    - name: Load image
+      run: podman load -i /tmp/image.tar
       
     - name: Start test mail server
       run: nimble startContainer
