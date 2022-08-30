@@ -13,7 +13,7 @@ jobs:
       uses: actions/cache@v1
       with:
         path: /tmp/image.tar
-        key: ${{ runner.os }}-${{ hashFiles('tests/image/**') }}
+        key: ${{ runner.os }}-image-${{ hashFiles('tests/image/**') }}
 
     - if: ${{ steps.cache-image.outputs.cache-hit != 'true' }}
       name: Install podman
@@ -67,8 +67,8 @@ jobs:
 
     - name: Install podman
       run: |
-        sudo apt update
-        sudo apt -y install podman
+        wget http://ftp.us.debian.org/debian/pool/main/libp/libpod/podman_4.2.0+ds1-3_amd64.deb
+        sudo dpkg -i podman_4.2.0+ds1-3_amd64.deb
 
     - name: Download artifact
       uses: actions/download-artifact@v3
