@@ -30,6 +30,17 @@ jobs:
     - name: Update nimble
       run: nimble update
 
+    - name: Install podman
+      run: |
+        sudo apt update
+        sudo apt -y install podman
+
+    - name: Build container
+      run: nimble buildContainer
+      
+    - name: Start test mail server
+      run: nimble startContainer
+  
     - name: Run tests
       run: nimble test
 
