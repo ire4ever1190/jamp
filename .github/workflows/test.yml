@@ -6,13 +6,14 @@ on: [push, pull_request]
 jobs:
   buildImage:
     name: Mail server image
+    runs-on: ubuntu-latest
     steps:
     - name: Cache image
       id: cache-image
       uses: actions/cache@v1
       with:
         path: /tmp/image.tar
-        key: ${{ runner.os }}-${{ hashFiles('tests/image/Dockerfile') }}
+        key: ${{ runner.os }}-${{ hashFiles('tests/image/**') }}
 
     - if: ${{ steps.cache-image.outputs.cache-hit != 'true' }}
       name: Install podman
@@ -38,7 +39,7 @@ jobs:
         
   test:
     needs: buildImage
-    timeout-minutes: 5
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     strategy:
       matrix:
