@@ -44,7 +44,7 @@ type
   Call*[T] = object
     ## Wrapper around Invocation_ that stores the needed
     ## capability and the type it returns
-    needed*: string # Capabilty needed
+    needed*: seq[string] # Capabilities needed
     invocation*: Invocation
     
 
@@ -66,18 +66,11 @@ type
 
   JMAPError* = object of CatchableError
 
-  CallFailed* = object of JMAPError
+  CallError* = object of JMAPError
     ## Raised if trying to access a call which failed. Check with ok_ first
     ## before accessing call to avoid
+    kind*: string
 
-  UnknownCapabilityError* = object of JMAPError
-    ## The client included a capability in the “using” property of the request that the server does not support.
-
-  LimitError* = object of JMAPError
-    ## The request was not processed as it would have exceeded one of the request limits defined on the capability object.
-
-  PathObject* = Table[string, JsonNode]
-    ## Mapping of Json pointers to updated versions of the objects
 
 const
   # from here https://jmap.io/spec-core.html#the-id-data-type 
@@ -101,10 +94,15 @@ proc fromJsonHook*(call: var Invocation, data: JsonNode) =
 
 # Helpers
 
+func addUsing*(request: var JMAPRequest, capability: string) =
+  ## Adds a needed capability to the request.
+  ## Not needed if Call specifies needed capabilities
+  if capability notin request.`using`:
+    request.`using` &= capability
 
 func add*(request: var JMAPRequest, call: Call) {.raises: [].} =
   ## Adds a call to the request.
-  ## Automatically adds the needed capabilities to `using`
+  ## Automatically adds the needed capabilities to the request
   runnableExamples "-d:ssl":
     import jamp
     var req: JMAPRequest
@@ -119,8 +117,8 @@ func add*(request: var JMAPRequest, call: Call) {.raises: [].} =
   #==#
   # Don't add the needed if its already present.
   # Pretty sure the server wont error but saves some bandwidth
-  if call.needed notin request.`using`:
-    request.`using` &= call.needed
+  for need in call.needed:
+    request.addUsing(need)
   request.methodCalls &= call.invocation
 
 # TODO: Raise error if call failed (Have {} which returns JNull if failed)
@@ -132,25 +130,42 @@ func `[]`*(resp: JMAPResponse, id: string): JsonNode {.raises: [KeyError].} =
     if invocation.id == id:
       for key, value in invocation.arguments:
         result[key] = value
-        
+          
   if result.len == 0:
     raise (ref KeyError)(msg: id & " was not found in the response")
 
+
+func ok*(invoc: Invocation): bool {.inline.} =
+  ## Returns false if the invocation is an error
+  result = invoc.name != "error"
 
 func ok*(resp: JMAPResponse, id: string): bool =
   ## Returns true if call associated with ID had no error
   result = true
   for invocation in resp.methodResponses:
-    if invocation.id == id and invocation.name == "error":
+    if invocation.id == id and not invocation.ok:
       return false
 
 func ok*(resp: JMAPResponse, call: Call): bool =
   ## Returns true if the call didn't return an error
   result = resp.ok(call.id)
 
-func `[]`*(resp: JMAPResponse, call: Call): JsonNode {.inline, raises: [KeyError].} =
-  ## Gets response data for a call
-  result = resp[call.id]
+
+func `[]`*[T](resp: JMAPResponse, call: Call[T]): T {.inline.} =
+  ## Gets response data for a call.
+  ## Automatically parses the json and converts to the calls response type.
+  ## Will throw an exception if trying to get value from 
+  for invocation in resp.methodResponses:
+    if invocation.id == call.id and not invocation.ok:
+      raise (ref CallError)(msg: 
+        invocation.arguments["description"].str, 
+        kind: invocation.arguments["type"].str
+      )
+      
+  result.fromJson(resp[call.id], JOptions(
+    allowExtraKeys: true,
+    allowMissingKeys: true
+  ))
 
 func id*(call: Call): string {.inline, raises: [].} =
   ## Returns invocation ID
@@ -177,10 +192,10 @@ proc newInvocation*(name: string, args: sink JsonNode, id = ""): Invocation =
     id: if id != "": id else: ("i" & $genNanoID())
   )
 
-proc initCall*[T](needed, name: string, args: sink JsonNode, id = ""): Call[T] =
+proc initCall*[T](needed: seq[string], name: string, args: sink JsonNode, id = ""): Call[T] =
   ## Creates a new call.
   ##
-  ## * **needed**: Is the capability needed by the server to perform the method
+  ## * **needed**: Is the capabilities needed by the server to perform the method
   ## * **id**: ID to use for the call. If blank then a random one is generated
   result = Call[T](
     needed: needed,

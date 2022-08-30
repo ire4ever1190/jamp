@@ -12,6 +12,8 @@ import std/[json, options, strutils, tables]
 import ../methods
 import ../common
 
+import core
+
 const
   mailCapability* = "urn:ietf:params:jmap:mail"
   submissionCapability* = "urn:ietf:params:jmap:submission"
@@ -32,7 +34,7 @@ proc get*(m; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal,
           properties: JPar[seq[string]] = @["id"]): Call[MailGet] =
   ## Same as base get.
   let args = Base.passArgs(get)
-  result.needed = mailCapability
+  result.needed = @[mailCapability, coreCapability]
   result.invocation = newInvocation(
     "Email/get",
     args
@@ -49,7 +51,7 @@ proc query*(m; accountId: JPar[string], filter: JPar[FilterOperator] = defaultVa
   # let args = Base.query[EmailFilter](accountId, filter, sort, position, anchor, anchorOffset, limit, calculateTotal)
   let args = Base.passArgs(query)
   args["collapseThreads"] = collapseThreads
-  result.needed = mailCapability
+  result.needed = @[mailCapability, coreCapability]
   result.invocation = newInvocation(
     "Email/query",
     args
@@ -59,7 +61,7 @@ proc set*(m; accountId: JPar[string], ifInState: JPar[string] = defaultVal,
           create: JPar[Table[string, Email]] = defaultVal, update: JPar[Table[string, PatchObject]] = defaultVal, 
           destroy: JPar[seq[string]] = defaultVal, onDestroyRemoveEmails: JPar[bool] = defaultVal): Call[SetResponse] =
   let args = Base.passArgs(set)
-  result.needed = mailCapability
+  result.needed = @[mailCapability, coreCapability]
   result.invocation = newInvocation(
     "Email/set",
     args
@@ -82,7 +84,7 @@ type
     submit
 
   Mailbox* = object
-    id*, name: string
+    id*, name*: string
     parentId*, role*: Option[string]
     sortOrder*, totalEmails*, unreadEmails*, totalThreads*, unreadThreads*: uint
     myRights*: set[MailboxRight]
@@ -98,13 +100,14 @@ using mb: typedesc[Mailbox]
 
 
 proc get*(mb; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal, 
-          properties: JPar[seq[string]] = @["id"]): Call[Mailbox] =
+          properties: JPar[seq[string]] = @["id"]): Call[GetResponse[Mailbox]] =
   let args = Base.passArgs(get)
-  result.needed = mailCapability
+  result.needed = @[mailCapability, coreCapability]
   result.invocation = newInvocation(
     "Mailbox/get",
     args
   )
+  echo result.needed
   
 proc query*(mb; accountId: JPar[string], filter: JPar[FilterOperator | EmailFilter] = defaultVal,
             sort: JPar[seq[Comparator]] = defaultVal, position: JPar[int] = 0,
@@ -113,7 +116,7 @@ proc query*(mb; accountId: JPar[string], filter: JPar[FilterOperator | EmailFilt
             sortAsTree: JPar[bool] = false, filterAsTree: JPar[bool] = false): Call[QueryResponse] =
   let args = Base.passArgs(query)
   args.addParams(sortAsTree, filterAsTree)
-  result.needed = mailCapability
+  result.needed = @[mailCapability, coreCapability]
   result.invocation = newInvocation(
     "Mailbox/query",
     args

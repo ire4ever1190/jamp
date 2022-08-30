@@ -23,7 +23,7 @@ codeBlock:
     accountID = "1234" # ID of the account we are operating against
     trashID   = "4567" # ID of the trash mailbox
     
-  let client = newJMAPClient("our@email.com", "password", "host")
+  let client = newJMAPClient(basicAuth("our@email.com", "password"), "host")
   client.startSession()
 
 text """

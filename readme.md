@@ -5,17 +5,17 @@
 [JMAP](https://jmap.io/) client that I made. Bit rough at the moment and the API could still change.
 
 ### Implemented
-- [x] Core
-- [ ] Mail
+- [x] [Core](https://jmap.io/spec-core.html)
+- [ ] [Mail](https://jmap.io/spec-mail.html) (in progress)
 - [ ] Push
-- [ ] WebSocket
+- [ ] [WebSocket](https://www.rfc-editor.org/rfc/rfc8887.html)
 
 Specifications that I'm waiting to be finished before implementing
 
-- Calendars
-- Sharing
-- Contacts
-- Tasks 
+- [Calendars](https://jmap.io/spec-calendars.html)
+- [Sharing](https://jmap.io/spec-sharing.html)
+- [Contacts](https://jmap.io/spec-contacts.html)
+- [Tasks](https://jmap.io/spec-tasks.html) 
 
 
 ## Contributing
@@ -23,10 +23,16 @@ Specifications that I'm waiting to be finished before implementing
 #### Running tests
 
 Some of the tests require [podman](https://podman.io/) to be configured on your system so a test email server can
-be created. The tests also expect podman to be rootless
+be created. The tests also expect podman to be rootless. Once that is done you need to build and start the container
+before running the tests
+```cmd
+nimble buildContainer
+nimble startContainer
+```
 
-#### Thanks
+## Thanks
 
 Big thanks for fastmail for making an easy [samples repo](https://github.com/fastmail/JMAP-Samples/) that I used 
-in making this repo (Also for making their JMAP routes open so I could test out this library)
+in making this repo (Also for making their JMAP routes open so I could test out this library) (Sign up with this [referral link](https://ref.fm/u25971632) if you want to try them out)
 
+Also to Linagora whos [Typescript client](https://github.com/linagora/jmap-client-ts) I looked at for implementing my tests

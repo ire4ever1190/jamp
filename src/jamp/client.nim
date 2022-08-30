@@ -55,17 +55,27 @@ proc newAsyncHttpClient*(auth: AuthHandler, hostname: string): AsyncJMAPClient =
   result = newBaseClient[AsyncHttpClient](auth, hostname)
 
 
-proc startSession*(client: JMAPClient | AsyncJMAPClient) {.multisync.} =
+proc startSession*(client: JMAPClient | AsyncJMAPClient, insecure=false) {.multisync.} =
   ## Creates the session to the server.
   ## Must be called before anything else so that the client is
-  ## authenticated
+  ## authenticated.
+  ##
+  ## * **insecure**: Make this true to use http instead of https. Only recommended for testing against local server
   var extraHeaders = newHttpHeaders()
   client.auth(extraHeaders)
-  let resp = await client.http.request("https://" & client.host & "/.well-known/jmap", headers = extraHeaders)
-  try:
-    client.session = resp.body.await().parseJson().to(Session)
-  except JsonParsingError:
-    raise (ref IOError)(msg: await resp.body)
+  let resp = await client.http.request(
+    (if insecure: "http://" else: "https://") & client.host & "/.well-known/jmap",
+    headers = extraHeaders
+  )
+  if resp.code.is2xx:
+    try:
+      client.session = resp.body.await().parseJson().to(Session)
+    except JsonParsingError:
+      raise (ref IOError)(msg: await resp.body)
+  elif resp.code == Http401:
+    raise (ref JMapError)(msg: "Auth details are incorrect")
+  else:
+    raise (ref JMapError)(msg: await resp.body)
 
 func `$`*(req: JMAPRequest): string =
   req.toJson().pretty()
@@ -74,8 +84,10 @@ func `$`*(req: JMAPRequest): string =
 proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JMAPResponse] {.multisync.} =
   ## Perform a raw request to the JMAP server
   assert client.session.state != "", "Session doesn't exist. You might've forgotten to call startSession()"
+  # Add auth info
   var extraHeaders = newHttpHeaders()
   client.auth(extraHeaders)
+  
   let resp = await client.http.request(
     client.session.apiUrl,
     HttpPost,
@@ -83,6 +95,9 @@ proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JM
     headers = extraHeaders
   )
   let body = await resp.body()
+  when defined(jmapDebug):
+    echo "Got response: ", body
+  # Check the response
   if resp.code.is2xx:
     let j = resp.body.await().parseJson()
     result.fromJson(j, JOptions(
@@ -97,5 +112,14 @@ proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JM
     raise (ref JMAPError)(msg: j["detail"].str)
   else:
     raise (ref JMAPError)(msg: body)
+
+proc request*[T](client: JMAPClient | AsyncJMAPClient, call: Call[T]): Future[T] {.multisync.} =
+  ## Simplifer version of request which works for a single call.
+  ## Recommended to use `proc request(JMAPClient, JMAPRequest): JMAPResponse`_ over this if making multiple
+  ## requests
+  var req: JMAPRequest
+  req &= call
+  let resp = client.request(req)
+  return resp[call]
 
 export uri
