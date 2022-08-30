@@ -6,7 +6,7 @@ on: [push, pull_request]
 jobs:
   buildImage:
     name: Mail server image
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - name: Cache image
       id: cache-image
@@ -18,8 +18,8 @@ jobs:
     - if: ${{ steps.cache-image.outputs.cache-hit != 'true' }}
       name: Install podman
       run: |
-        sudo apt update
-        sudo apt -y install podman
+        wget http://ftp.us.debian.org/debian/pool/main/libp/libpod/podman_4.2.0+ds1-3_amd64.deb
+        sudo dpkg -i podman_4.2.0+ds1-3_amd64.deb
         
     - if: ${{ steps.cache-image.outputs.cache-hit != 'true' }}
       name: Setup environment
@@ -40,7 +40,7 @@ jobs:
   test:
     needs: buildImage
     timeout-minutes: 10
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         nim: ['1.6.0', 'stable', 'devel' ]
