@@ -52,7 +52,6 @@ runnableExamples "-d:ssl -r:off":
   assert resp.ok(query)
   assert resp.ok(get)
   echo "Total emails: ", resp[query].ids.len
-  assert resp[query].ids == resp[get].list.mapIt(it.id)
 
 when not defined(ssl):
   {.error: "JAMP requires ssl to be enabled (via -d:ssl or switch(\"d\", \"ssl\"))".}
