@@ -17,15 +17,14 @@ task buildContainer, "Builds test mail server container":
 
 task startContainer, "Starts the test mail server container":
   try:
-    exec "podman run --network podman -d --name test-mail -p 8080:80 localhost/mail-memory"
-    echo "Importing test data... (This will take a whiles)"
-    exec "podman exec test-mail bash /root/provision.sh"
+    exec "docker run -d -ti -p 80:8080 -p 11200:11200 -v tmp:/usr/local/stalwart-jmap --name test-mail stalwartlabs/jmap-server:latest --jmap-url=http://localhost"
   except OSError:
-    exec "podman start test-mail"
+    exec "docker start test-mail"
+  exec "sleep 1 && sh tests/image/provision.sh"
     
 task stopContainer, "Stops the test mail server container":
-  exec "podman stop --time 0 test-mail"
+  exec "docker stop --time 0 test-mail"
+  exec "docker rm test-mail"
 
 task cleanContainer, "Removes container and image":
-  try: exec "podman rm test-mail" except: discard
-  try: exec "podman image rm mail-memory" except: discard
+  try: exec "docker image rm mail-memory" except: discard

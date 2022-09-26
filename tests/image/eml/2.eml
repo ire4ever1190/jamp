@@ -1,7 +1,8 @@
+From example2
 Return-Path: <user@example.com>
 Delivered-To: alice@localhost
 From: <user@example.com>
-To: <alice@localhost>
+To: <alice@example.org>
 Subject: Header test
 Date: Thu, 16 Jun 2022 19:58:19 +0800
 Message-ID: <7654321@message-id.example.com>
