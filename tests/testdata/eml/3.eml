@@ -1,0 +1,23 @@
+From example3
+Return-Path: <user@example.com>
+Content-Type: multipart/mixed; boundary="------------d0uqk2L3zppFsgmgpQCRlPU0"
+Message-ID: <79444465-2f54-f30b-248c-7f5823a6572a@exampe.com>
+Date: Mon, 26 Sep 2022 21:01:49 +1000
+To: <alice@example.org>
+From: <user@example.com>
+Subject: Attachment test
+
+This is a multi-part message in MIME format.
+--------------d0uqk2L3zppFsgmgpQCRlPU0
+Content-Type: text/plain; charset=UTF-8; format=flowed
+Content-Transfer-Encoding: 7bit
+
+
+--------------d0uqk2L3zppFsgmgpQCRlPU0
+Content-Type: text/plain; charset=UTF-8; name="test.txt"
+Content-Disposition: attachment; filename="test.txt"
+Content-Transfer-Encoding: base64
+
+SGVsbG8gd29ybGQK
+
+--------------d0uqk2L3zppFsgmgpQCRlPU0--

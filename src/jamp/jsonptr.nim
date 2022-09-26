@@ -9,23 +9,19 @@ import utils
   `JSON pointer <https://www.packetizer.com/rfc/rfc6901/>`_ is a way for specifying a path to a value inside a JSON object.
   A pointer works by having a series of parameters to go through that are seperated by `/`. If accessing an index then you 
   put the index after the `/`.
-]##
-runnableExamples:
-  type
-    Person = ref object
-      name: string
-      friends: seq[Person]
-      
-  let data = Person(
-    name: "John",
-    friends: @[
-      Person(
-        name: "Jane",
-        friends: @[]
-      )
-    ]
-  )
-##[
+
+```nim
+{
+  "name": "John",
+  "friends": [
+    {
+      "name": "Jane",
+      "friends": []
+    }
+  ]
+}
+```
+
   Using `Person` has an example. You can access John's name via `"/name"`:nim:, get Jane's name via `"/name/0/name"`:nim:, get all of 
   John's friends via `"/friends/*"`:nim:, and all of his friends names via `"/friends/*/name"`:nim:. Those last two examples (using `*`) are not
   part of the standard JSON pointer spec but are allowed in JMAP.

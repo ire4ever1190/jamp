@@ -22,11 +22,10 @@ Specifications that I'm waiting to be finished before implementing
 
 #### Running tests
 
-Some of the tests require [podman](https://podman.io/) to be configured on your system so a test email server can
-be created. The tests also expect podman to be rootless. Once that is done you need to build and start the container
+Some of the tests require docker to be configured on your system so a test email server can
+be created. Once that is done you need to build and start the container
 before running the tests
 ```cmd
-nimble buildContainer
 nimble startContainer
 ```
 

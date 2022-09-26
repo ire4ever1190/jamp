@@ -1,9 +1,9 @@
 import std/[
   asyncdispatch,
   httpclient,
-  base64,
   json,
   tables,
+  strutils,
   jsonutils,
   uri
 ]
@@ -36,9 +36,10 @@ const userAgent = "Jamp/0.1.0"
 proc newBaseClient[T](auth: AuthHandler, host: string): BaseJMAPClient[T] =
   result = new BaseJMAPClient[T]
   result.auth = auth
-  let defaultHeaders = newHttpHeaders {
+  var defaultHeaders = newHttpHeaders {
     "Content-Type": "application/json"
   }
+  auth(defaultHeaders)
   result.http = when T is HttpClient:
       newHttpClient(userAgent, headers = defaultHeaders) 
     else:
@@ -61,11 +62,8 @@ proc startSession*(client: JMAPClient | AsyncJMAPClient, insecure=false) {.multi
   ## authenticated.
   ##
   ## * **insecure**: Make this true to use http instead of https. Only recommended for testing against local server
-  var extraHeaders = newHttpHeaders()
-  client.auth(extraHeaders)
   let resp = await client.http.request(
     (if insecure: "http://" else: "https://") & client.host & "/.well-known/jmap",
-    headers = extraHeaders
   )
   if resp.code.is2xx:
     try:
@@ -80,19 +78,18 @@ proc startSession*(client: JMAPClient | AsyncJMAPClient, insecure=false) {.multi
 func `$`*(req: JMAPRequest): string =
   req.toJson().pretty()
 
+func pretty*(resp: JMAPResponse): string =
+  resp.toJson().pretty()
 
 proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JMAPResponse] {.multisync.} =
   ## Perform a raw request to the JMAP server
   assert client.session.state != "", "Session doesn't exist. You might've forgotten to call startSession()"
   # Add auth info
-  var extraHeaders = newHttpHeaders()
-  client.auth(extraHeaders)
-  
+    
   let resp = await client.http.request(
     client.session.apiUrl,
     HttpPost,
-    body = $req.toJson(),
-    headers = extraHeaders
+    body = $req.toJson()
   )
   let body = await resp.body()
   when defined(jmapDebug):
@@ -115,11 +112,23 @@ proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JM
 
 proc request*[T](client: JMAPClient | AsyncJMAPClient, call: Call[T]): Future[T] {.multisync.} =
   ## Simplifer version of request which works for a single call.
-  ## Recommended to use `proc request(JMAPClient, JMAPRequest): JMAPResponse`_ over this if making multiple
+  ## Recommended to use `proc request[T](JMAPClient, seq[Call[T]]): JMAPResponse`_ over this if making multiple
   ## requests
   var req: JMAPRequest
   req &= call
   let resp = client.request(req)
   return resp[call]
 
+proc downloadBlob*(client: JMAPClient | AsyncJMAPClient, accountID, blobID: string, 
+                  contentType = "file/any", name = "download"): Future[string] {.multisync.} =
+  ## Used to download a blob. 
+  ## You shouldn't need to change the optional parameters
+  let url = client.session.downloadUrl.multiReplace(
+    ("{accountId}", accountID),
+    ("{blobId}", blobID),
+    ("{type}", contentType),
+    ("{name}", name)
+  )
+  result = await client.http.getContent(url)
+  
 export uri
