@@ -1,3 +1,4 @@
+#!/bin/bash
 function stal() {
 	stalwart-cli -c changeme --url http://localhost $@
 }

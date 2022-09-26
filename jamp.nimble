@@ -20,7 +20,7 @@ task startContainer, "Starts the test mail server container":
     exec "docker run -d -ti -p 80:8080 -p 11200:11200 --name test-mail stalwartlabs/jmap-server:latest --jmap-url=http://localhost"
   except OSError:
     exec "docker start test-mail"
-  exec "sleep 1 && sh tests/testdata/provision.sh"
+  exec "sleep 1 && bash tests/testdata/provision.sh"
     
 task stopContainer, "Stops the test mail server container":
   exec "docker stop --time 0 test-mail"
