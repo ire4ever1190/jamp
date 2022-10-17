@@ -140,6 +140,6 @@ proc uploadBlob*(client: JMAPClient | AsyncJMAPClient, accountID, contentType, b
   if resp.code.is2xx:
     result = json.jsonTo(Blob)
   else:
-    raise (ref JMAPError)(msg: resp["details"].str)
+    raise (ref JMAPError)(msg: json["details"].str)
     
 export uri
