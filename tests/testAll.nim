@@ -61,6 +61,6 @@ suite "Blobs":
       blob = client.uploadBlob(accountID, "text/plain", blobData)
     check:
       blob.accountID == accountID
-      blob.fileType =="text/plain"
-      blob.size == blobData.len
+      blob.fileType == "text/plain"
+      blob.size == blobData.len.uint
 
