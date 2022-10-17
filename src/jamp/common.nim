@@ -73,8 +73,8 @@ type
 
   Blob* =  object
     ## Stores information about a [blob](https://jmap.io/spec-core.html#binary-data)
-    accountId, blobId, `type`: string
-    size: uint
+    accountId*, blobId*, `type`*: string
+    size*: uint
 
 const
   # from here https://jmap.io/spec-core.html#the-id-data-type 
