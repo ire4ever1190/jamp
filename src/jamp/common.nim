@@ -71,6 +71,10 @@ type
     ## before accessing call to avoid
     kind*: string
 
+  Blob* =  object
+    ## Stores information about a [blob](https://jmap.io/spec-core.html#binary-data)
+    accountId, blobId, `type`: string
+    size: uint
 
 const
   # from here https://jmap.io/spec-core.html#the-id-data-type 
@@ -172,7 +176,8 @@ func id*(call: Call): string {.inline, raises: [].} =
   ## Returns invocation ID
   result = call.invocation.id
 
-
+func fileType*(b: Blob): string {.inline.} = b.`type`
+  ## Returns the file type (i.e. content type)
 
 proc newInvocation*(name: string, args: sink JsonNode, id = ""): Invocation =
   ## Creates a new invocation.

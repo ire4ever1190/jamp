@@ -13,8 +13,8 @@ import common, auth
 
 type
   BaseJMAPClient[T: HttpClient or AsyncHttpClient] = ref object
-    ## Stores the information about the connection to the server 
-    http: T 
+    ## Stores the information about the connection to the server
+    http: T
     session*: Session
     host*: string
     auth: AuthHandler
@@ -26,7 +26,7 @@ template obj[T: ref object](x: typedesc[T]): untyped = typeof(x()[])
 
 proc `=destroy`(client: var JMAPClient.obj) =
   client.http.close()
-  
+
 proc `=destroy`(client: var AsyncJMAPClient.obj) =
   client.http.close()
 
@@ -41,13 +41,13 @@ proc newBaseClient[T](auth: AuthHandler, host: string): BaseJMAPClient[T] =
   }
   auth(defaultHeaders)
   result.http = when T is HttpClient:
-      newHttpClient(userAgent, headers = defaultHeaders) 
+      newHttpClient(userAgent, headers = defaultHeaders)
     else:
       newAsyncHttpClient(userAgent, headers = defaultHeaders)
   result.host = host
-  
+
 proc newJMAPClient*(auth: AuthHandler, hostname: string): JMAPClient =
-  ## Creates a new JMAP client. If hostname is left blank then it 
+  ## Creates a new JMAP client. If hostname is left blank then it
   ## will try and auto discover the hostname (This may fail)
   result = newBaseClient[HttpClient](auth, hostname)
 
@@ -85,7 +85,7 @@ proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JM
   ## Perform a raw request to the JMAP server
   assert client.session.state != "", "Session doesn't exist. You might've forgotten to call startSession()"
   # Add auth info
-    
+
   let resp = await client.http.request(
     client.session.apiUrl,
     HttpPost,
@@ -119,9 +119,9 @@ proc request*[T](client: JMAPClient | AsyncJMAPClient, call: Call[T]): Future[T]
   let resp = client.request(req)
   return resp[call]
 
-proc downloadBlob*(client: JMAPClient | AsyncJMAPClient, accountID, blobID: string, 
+proc downloadBlob*(client: JMAPClient | AsyncJMAPClient, accountID, blobID: string,
                   contentType = "file/any", name = "download"): Future[string] {.multisync.} =
-  ## Used to download a blob. 
+  ## Used to download a blob.
   ## You shouldn't need to change the optional parameters
   let url = client.session.downloadUrl.multiReplace(
     ("{accountId}", accountID),
@@ -130,5 +130,17 @@ proc downloadBlob*(client: JMAPClient | AsyncJMAPClient, accountID, blobID: stri
     ("{name}", name)
   )
   result = await client.http.getContent(url)
-  
+
+proc uploadBlob*(client: JMAPClient | AsyncJMAPClient, accountID, contentType, blob: string): Future[Blob] {.multisync.} =
+  ## Uploads a blob of data to the server. If uploading a file from disk then use [uploadFile]
+  let url = client.session.uploadUrl.replace("{accountId}", accountId)
+  let resp = await client.http.request(url, HttpPost, blob, newHttpHeaders {
+    "Content-Type": contentType
+  })
+  let json = resp.body.await().parseJson()
+  if resp.code.is2xx:
+    result = json.jsonTo(Blob)
+  else:
+    raise (ref JMAPError)(msg: resp["details"].str)
+
 export uri
