@@ -85,7 +85,6 @@ proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JM
   ## Perform a raw request to the JMAP server
   assert client.session.state != "", "Session doesn't exist. You might've forgotten to call startSession()"
   # Add auth info
-
   let resp = await client.http.request(
     client.session.apiUrl,
     HttpPost,
@@ -142,5 +141,5 @@ proc uploadBlob*(client: JMAPClient | AsyncJMAPClient, accountID, contentType, b
     result = json.jsonTo(Blob)
   else:
     raise (ref JMAPError)(msg: resp["details"].str)
-
+    
 export uri
