@@ -55,13 +55,25 @@ macro reuseIt*(call: Call, path: untyped): ResultReference =
     newCall(bindSym"point", nnkDotExpr.newTree(call, ident"T"), path)
   )
 
+const
+  jmapDateFormat*    = "yyyy-MM-dd'T'hh:mm:sszzz"
+  jmapUTCDateFormat* = "yyyy-MM-dd'T'hh:mm:ss'Z'"
+
 proc formatDate*(date: DateTime): string =
-  ## Returns date in the format that JMAP expects for `Date <https://jmap.io/spec-core.html#the-date-and-utcdate-data-types>`_
-  result = date.format("yyyy-MM-dd'T'hh:mm:sszzz")
+  ## Returns date in the format that JMAP expects for [Date](https://jmap.io/spec-core.html#the-date-and-utcdate-data-types)
+  result = date.format(jmapDateFormat)
   
 proc formatUTCDate*(date: DateTime): string =
-  ## Returns date in the format that JMAP expects for `UTCDate <https://jmap.io/spec-core.html#the-date-and-utcdate-data-types>`_
-  result = date.utc.format("yyyy-MM-dd'T'hh:mm:ss'Z'")
+  ## Returns date in the format that JMAP expects for [UTCDate](https://jmap.io/spec-core.html#the-date-and-utcdate-data-types)
+  result = date.utc.format(jmapUTCDateFormat)
+
+proc parseDate*(inp: string): DateTime = 
+  ## Parses date in [Date](https://jmap.io/spec-core.html#the-date-and-utcdate-data-types) format
+  inp.parse(jmapDateFormat)
+
+proc parseUTCDate*(inp: string): DateTime =
+  ## Parses date in [UTCDate](https://jmap.io/spec-core.html#the-date-and-utcdate-data-types) format
+  inp.parse(jmapUTCDateFormat)
 
 macro props*(x: typedesc, props: varargs[untyped]): seq[string] =
   ## Build a list of props from a type. Useful for having typesafe

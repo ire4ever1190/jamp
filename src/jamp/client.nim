@@ -24,6 +24,7 @@ type
 
 template obj[T: ref object](x: typedesc[T]): untyped = typeof(x()[])
 
+
 proc `=destroy`(client: var JMAPClient.obj) =
   client.http.close()
   
