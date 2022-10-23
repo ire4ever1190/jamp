@@ -49,13 +49,13 @@ type
     hasMoreChanges*: bool
     created*, updated*, destroyed*: seq[string]
     
-  SetResponse* = ref object of RootObj
+  SetResponse*[T] = ref object of RootObj
     ## Shows information about what operations were successful/failed    
     accountId*: string
     oldState*: Option[string]
     newState*: string
-    created*: Option[Table[string, string]]
-    updated*: Option[Table[string, Option[string]]]
+    created*: Option[Table[string, T]]
+    updated*: Option[Table[string, Option[T]]]
     destroyed*: Option[seq[string]]
     notCreated*, notUpdated*, notDestroyed*: Option[Table[string, SetError]]
     
@@ -240,7 +240,8 @@ macro passArgs*(ns: typedesc, name: typed): JsonNode =
           prc = possible
           break
           
-  assert prc.kind != nnkEmpty, "Couldn't find " & $name & " for " & $ns
+  if prc.kind == nnkEmpty:
+    error("Couldn't find " & $name & " for " & $ns, name)
   result = nnkCall.newTree(prc, ns)
   for param in prc.getImpl().params[2..^1]:
     result &= ident($param[0])
@@ -307,9 +308,10 @@ proc query*(_; accountId: JPar[string], filter: JPar[FilterOperator] = defaultVa
   result = newJObject()
   result.addParams(accountId, filter, sort, position, anchor, anchorOffset, limit, calculateTotal)
 
-proc set*(_; accountId: JPar[string], ifInState: JPar[string] = defaultVal,
-          create: JPar[Table[string, JsonNode]], update: JPar[Table[string, PatchObject]], 
-          destroy: JPar[seq[string]]): JsonNode =
+proc set*[T](_; accountId: JPar[string], ifInState: JPar[string] = defaultVal,
+             create: JPar[Table[string, T]] = defaultVal, 
+             update: JPar[Table[string, PatchObject]] = defaultVal, 
+             destroy: JPar[seq[string]] = defaultVal): JsonNode =
   ## Used to create, update, and destroy records of a certain type
   result = newJObject()
   result.addParams(accountId, ifInState, create, update, destroy)

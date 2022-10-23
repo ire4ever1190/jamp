@@ -59,7 +59,7 @@ proc query*(m; accountId: JPar[string], filter: JPar[FilterOperator] = defaultVa
 
 proc set*(m; accountId: JPar[string], ifInState: JPar[string] = defaultVal,
           create: JPar[Table[string, Email]] = defaultVal, update: JPar[Table[string, PatchObject]] = defaultVal, 
-          destroy: JPar[seq[string]] = defaultVal, onDestroyRemoveEmails: JPar[bool] = defaultVal): Call[SetResponse] =
+          destroy: JPar[seq[string]] = defaultVal, onDestroyRemoveEmails: JPar[bool] = defaultVal): Call[SetResponse[Email]] =
   let args = Base.passArgs(set)
   result.needed = @[mailCapability, coreCapability]
   result.invocation = newInvocation(
