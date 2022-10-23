@@ -3,7 +3,8 @@ import std/[
   tables,
   jsonutils,
   sets,
-  macros
+  macros,
+  options
 ]
 
 import anano
@@ -64,6 +65,10 @@ type
     methodResponses*: seq[Invocation]
     sessionState*: string
 
+  SetError* = object
+    `type`*: string
+    description*: Option[string]
+
   JMAPError* = object of CatchableError
 
   CallError* = object of JMAPError
@@ -71,9 +76,12 @@ type
     ## before accessing call to avoid
     kind*: string
 
+  AuthorisationError* = object of JMAPError
+    ## Raised when there are problems with authenticating
+
   Blob* =  object
     ## Stores information about a [blob](https://jmap.io/spec-core.html#binary-data)
-    accountId*, blobId*, `type`*: string
+    accountId*, id*, fileType*: string
     size*: uint
 
 const
@@ -95,6 +103,22 @@ proc fromJsonHook*(call: var Invocation, data: JsonNode) =
     arguments: data[1],
     id: data[2].str
   )
+
+proc fromJsonHook*(blob: var Blob, data: JsonNode) =
+  blob = Blob(
+    accountId: data["accountId"].str,
+    id: data["blobId"].str,
+    fileType: data["type"].str,
+    size: data["size"].num.uint
+  )
+
+proc toJsonHook*(blob: Blob): JsonNode =
+  result = %* {
+    "accountId": blob.accountId,
+    "blobId": blob.id,
+    "type": blob.fileType,
+    "size": blob.size
+  }
 
 # Helpers
 
@@ -176,8 +200,6 @@ func id*(call: Call): string {.inline, raises: [].} =
   ## Returns invocation ID
   result = call.invocation.id
 
-func fileType*(b: Blob): string {.inline.} = b.`type`
-  ## Returns the file type (i.e. content type)
 
 proc newInvocation*(name: string, args: sink JsonNode, id = ""): Invocation =
   ## Creates a new invocation.

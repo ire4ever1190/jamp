@@ -1,7 +1,9 @@
 import std/[
   strutils,
-  macros
+  macros,
+  httpclient
 ]
+
 
 ##[
   Contains utils for library. Mostly for internal use
@@ -55,3 +57,7 @@ func getFullType*(obj: NimNode): NimNode =
         result = result[1]
     else:
       result = result[0].getFullType()
+
+func isJson*(resp: Response | AsyncResponse): bool =
+  ## Checks if the response is a json object
+  resp.headers.hasKey("Content-Type") and resp.headers["Content-Type"] in ["application/json", "application/problem+json"]

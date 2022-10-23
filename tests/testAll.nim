@@ -4,9 +4,6 @@ import jamp
 import jamp/specs/core
 
 
-let (ip, _) = execCmdEx("podman inspect test-mail -f '{{ .NetworkSettings.IPAddress }}'")
-
-
 test "Unauthorised requests are handled":
   try:
     let client = newJMAPClient(basicAuth("alice@example.org", "incorrect"), "127.0.0.1:80")
@@ -30,7 +27,15 @@ test "Connection works":
   let resp = client.request(request)
   check resp[echo] == body
 
-let accountID = client.session.accounts.keys().toSeq[0]
+proc findId(name: string): string =
+  ## Finds ID for account that has name
+  for id, account in client.session.accounts:
+    if account.name == name:
+      return id
+
+let
+  groupID = findId("everyone")
+  accountID = findId("everyone")
 
 suite "Mailboxes":
   test "Get":
@@ -38,6 +43,8 @@ suite "Mailboxes":
       Mailbox.get(accountID, properties = Mailbox.props(id, name))
     )
     check boxes.list.mapIt(it.name) == @["Inbox", "Deleted Items", "Drafts", "Sent Items", "Junk Mail"]
+
+# echo client.request(Email.query(accountID))[]
 
 suite "Blobs":
   test "Downloading blob":
@@ -52,6 +59,7 @@ suite "Blobs":
     req &= query
     req &= get
     let resp = client.request(req)
+    echo resp[get].list
     let blobID = resp[get].list[0]["attachments"][0]["blobId"].str
     check client.downloadBlob(accountID, blobID) == "Hello world\n" 
 
@@ -63,4 +71,8 @@ suite "Blobs":
       blob.accountID == accountID
       blob.fileType == "text/plain"
       blob.size == blobData.len.uint
+
+  test "Copying blob":
+    let origBlob = client.uploadBlob(accountID, "text/plain", "hello wolrd")
+    # let resp = client.request(Blob.copy(accountID, secondAccountID, @[origBlob.id]))
 

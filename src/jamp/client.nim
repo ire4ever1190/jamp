@@ -8,7 +8,7 @@ import std/[
   uri
 ]
 
-import common, auth
+import common, auth, utils
 
 
 type
@@ -81,33 +81,43 @@ func `$`*(req: JMAPRequest): string =
 func pretty*(resp: JMAPResponse): string =
   resp.toJson().pretty()
 
+proc checkResp(resp: Response | AsyncResponse): Future[JsonNode] {.multisync.} =
+  ## Checks a JMAP response that it had no errors. If nothing fails
+  ## then it returns the JSON stored in the response. If something went
+  ## wrong then it throws a JMAP exception
+  let body = await resp.body
+  if resp.code.is2xx:
+    result = body.parseJson()
+  elif resp.code == Http401:
+    raise (ref AuthorisationError)(msg: "Authorisation required, check details are correct")
+  elif resp.isJson():
+    ## Get better error message stored inside
+    let json = body.parseJson()
+    raise (ref JMAPError)(msg: json["detail"].str)
+  else:
+    ## Likely isn't json so just use the body as the exception
+    echo resp.headers
+    raise (ref JMAPError)(msg: body)
+
 proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JMAPResponse] {.multisync.} =
   ## Perform a raw request to the JMAP server
   assert client.session.state != "", "Session doesn't exist. You might've forgotten to call startSession()"
   # Add auth info
+  when defined(jmapDebug):
+    echo "Sending body: " & req.toJson().pretty()
   let resp = await client.http.request(
     client.session.apiUrl,
     HttpPost,
     body = $req.toJson()
   )
-  let body = await resp.body()
   when defined(jmapDebug):
+    let body = await resp.body()
     echo "Got response: ", body
   # Check the response
-  if resp.code.is2xx:
-    let j = resp.body.await().parseJson()
-    result.fromJson(j, JOptions(
-      allowExtraKeys: true,
-      allowMissingKeys: false
-    ))
-  elif resp.code == Http401:
-    raise (ref JMAPError)(msg: "Authorization required, check details are correct")
-  elif resp.headers["Content-Type"] == "application/json":
-    # If its JSON then we can get a better error msg
-    let j = resp.body.await().parseJson()
-    raise (ref JMAPError)(msg: j["detail"].str)
-  else:
-    raise (ref JMAPError)(msg: body)
+  result.fromJson(await resp.checkResp(), JOptions(
+    allowExtraKeys: true,
+    allowMissingKeys: false
+  ))
 
 proc request*[T](client: JMAPClient | AsyncJMAPClient, call: Call[T]): Future[T] {.multisync.} =
   ## Simplifer version of request which works for a single call.
@@ -136,10 +146,6 @@ proc uploadBlob*(client: JMAPClient | AsyncJMAPClient, accountID, contentType, b
   let resp = await client.http.request(url, HttpPost, blob, newHttpHeaders {
     "Content-Type": contentType
   })
-  let json = resp.body.await().parseJson()
-  if resp.code.is2xx:
-    result = json.jsonTo(Blob)
-  else:
-    raise (ref JMAPError)(msg: json["details"].str)
+  result.fromJson(await resp.checkResp())
     
 export uri
