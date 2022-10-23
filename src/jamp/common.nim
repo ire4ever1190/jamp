@@ -151,7 +151,7 @@ func ok*(resp: JMAPResponse, call: Call): bool =
   result = resp.ok(call.id)
 
 
-func `[]`*[T](resp: JMAPResponse, call: Call[T]): T {.inline.} =
+proc `[]`*[T](resp: JMAPResponse, call: Call[T]): T {.inline.} =
   ## Gets response data for a call.
   ## Automatically parses the json and converts to the calls response type.
   ## Will throw an exception if trying to get value from 
