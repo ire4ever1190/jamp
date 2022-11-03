@@ -162,7 +162,6 @@ proc `[]`*[T](resp: JMAPResponse, call: Call[T]): T {.inline.} =
         kind: invocation.arguments["type"].str
       )
 
-  # Inplace version had issues for some reason
   result.fromJson(resp[call.id], JOptions(
     allowExtraKeys: true,
     allowMissingKeys: true

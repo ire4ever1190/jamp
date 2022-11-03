@@ -86,11 +86,12 @@ proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JM
   ## Perform a raw request to the JMAP server
   assert client.session.state != "", "Session doesn't exist. You might've forgotten to call startSession()"
   # Add auth info
-    
   let resp = await client.http.request(
     client.session.apiUrl,
     HttpPost,
-    body = $req.toJson()
+    body = $req.toJson(
+      ToJsonOptions(enumMode: joptEnumString)
+    )
   )
   let body = await resp.body()
   when defined(jmapDebug):
@@ -100,7 +101,7 @@ proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JM
     let j = resp.body.await().parseJson()
     result.fromJson(j, JOptions(
       allowExtraKeys: true,
-      allowMissingKeys: false
+      allowMissingKeys: true
     ))
   elif resp.code == Http401:
     raise (ref JMAPError)(msg: "Authorization required, check details are correct")

@@ -63,10 +63,7 @@ suite "Argument passing":
                  update: JPar[Table[string, PatchObject]] = defaultVal, 
                  destroy: JPar[seq[string]] = defaultVal): JsonNode =
       Base.passArgs(set)
-    let create = toTable {
-      "test": Foo()
-    }
-    check Foo.set("test", create = create)["create"].to(typeof(create)) == create
+    check Foo.set("test", destroy = @["test"])["create"].to(typeof(create)) == create
     
 suite "Filter operators":
   # OR and AND use a template for implementation so they work the same

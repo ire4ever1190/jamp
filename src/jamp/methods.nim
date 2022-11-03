@@ -105,7 +105,7 @@ type
 
   Operator* = enum
     ## Operators for use with FilterOperator_.
-    ## **Just** means a condition on its own
+    ## **Just** means a value on its own
     And = "AND"
     Or  = "OR"
     Not = "NOT"
@@ -243,9 +243,10 @@ macro passArgs*(ns: typedesc, name: typed): JsonNode =
   if prc.kind == nnkEmpty:
     error("Couldn't find " & $name & " for " & $ns, name)
   result = nnkCall.newTree(prc, ns)
-  for param in prc.getImpl().params[2..^1]:
+  let impl = prc.getImpl()
+  for param in impl.params[2..^1]:
     result &= ident($param[0])
-
+  
 macro addParams*(data: JsonNode, params: varargs[untyped]) =
   ## Adds multiple params to **data** with their key being the name of the paramter
   runnableExamples "-d:ssl":
