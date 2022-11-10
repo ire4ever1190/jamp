@@ -111,9 +111,6 @@ proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JM
       ToJsonOptions(enumMode: joptEnumString)
     )
   )
-  when defined(jmapDebug):
-    let body = await resp.body()
-    echo "Got response: ", body
   # Check the response
   if resp.code.is2xx:
     let j = resp.body.await().parseJson()
@@ -123,12 +120,12 @@ proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JM
     ))
   elif resp.code == Http401:
     raise (ref JMAPError)(msg: "Authorization required, check details are correct")
-  elif resp.headers["Content-Type"] == "application/json":
+  elif resp.headers["Content-Type"] == "application/problem+json":
     # If its JSON then we can get a better error msg
     let j = resp.body.await().parseJson()
     raise (ref JMAPError)(msg: j["detail"].str)
   else:
-    raise (ref JMAPError)(msg: body)
+    raise (ref JMAPError)(msg: await resp.body)
 
 proc request*[T](client: JMAPClient | AsyncJMAPClient, call: Call[T]): Future[T] {.multisync.} =
   ## Simplifer version of request which works for a single call.

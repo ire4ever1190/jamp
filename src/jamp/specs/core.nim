@@ -21,8 +21,8 @@ type
     ##
     ## * **copied**: The mapping of blob IDs from original account to blobs in new account
     fromAccountId*, accountId*: string
-    copied: Option[Table[string, string]]
-    notCopied: Option[Table[string, SetError]]
+    copied*: Option[Table[string, string]]
+    notCopied*: Option[Table[string, SetError]]
 
 proc echo*(c: typedesc[Core], args: JsonNode): Call[JsonNode] =
   ## Returns the JSON data sent. Useful for testing connection works

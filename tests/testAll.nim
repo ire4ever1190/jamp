@@ -1,4 +1,4 @@
-import std/[osproc, unittest, sequtils]
+import std/[osproc, unittest, sequtils, options]
 import jamp
 
 import jamp/specs/core
@@ -35,7 +35,7 @@ proc findId(name: string): string =
 
 let
   groupID = findId("everyone")
-  accountID = findId("everyone")
+  accountID = findId("Alice")
 
 suite "Mailboxes":
   test "Get":
@@ -73,6 +73,9 @@ suite "Blobs":
       blob.size == blobData.len.uint
 
   test "Copying blob":
-    let origBlob = client.uploadBlob(accountID, "text/plain", "hello wolrd")
-    # let resp = client.request(Blob.copy(accountID, secondAccountID, @[origBlob.id]))
-
+    const blob = "hello wolrd"
+    let
+      origBlob = client.uploadBlob(groupID, "text/plain", blob)
+      resp = client.request(Blob.copy(groupID, accountID, @[origBlob.id]))
+      newID = resp.copied.get()[origBlob.id]
+    check client.downloadBlob(accountID, newID) == blob
