@@ -24,6 +24,7 @@ type
 
 template obj[T: ref object](x: typedesc[T]): untyped = typeof(x()[])
 
+
 proc `=destroy`(client: var JMAPClient.obj) =
   client.http.close()
 
@@ -103,21 +104,31 @@ proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JM
   ## Perform a raw request to the JMAP server
   assert client.session.state != "", "Session doesn't exist. You might've forgotten to call startSession()"
   # Add auth info
-  when defined(jmapDebug):
-    echo "Sending body: " & req.toJson().pretty()
   let resp = await client.http.request(
     client.session.apiUrl,
     HttpPost,
-    body = $req.toJson()
+    body = $req.toJson(
+      ToJsonOptions(enumMode: joptEnumString)
+    )
   )
   when defined(jmapDebug):
     let body = await resp.body()
     echo "Got response: ", body
   # Check the response
-  result.fromJson(await resp.checkResp(), JOptions(
-    allowExtraKeys: true,
-    allowMissingKeys: false
-  ))
+  if resp.code.is2xx:
+    let j = resp.body.await().parseJson()
+    result.fromJson(j, JOptions(
+      allowExtraKeys: true,
+      allowMissingKeys: true
+    ))
+  elif resp.code == Http401:
+    raise (ref JMAPError)(msg: "Authorization required, check details are correct")
+  elif resp.headers["Content-Type"] == "application/json":
+    # If its JSON then we can get a better error msg
+    let j = resp.body.await().parseJson()
+    raise (ref JMAPError)(msg: j["detail"].str)
+  else:
+    raise (ref JMAPError)(msg: body)
 
 proc request*[T](client: JMAPClient | AsyncJMAPClient, call: Call[T]): Future[T] {.multisync.} =
   ## Simplifer version of request which works for a single call.

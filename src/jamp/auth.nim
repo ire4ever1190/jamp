@@ -8,6 +8,7 @@ import std/[
   client to specify how you want the client to authenticate with the server
 ]##
 
+# This seems needlessly complex, TODO: Remember the reason I did this
 
 type
   AuthHandler* = proc (headers: var HttpHeaders)

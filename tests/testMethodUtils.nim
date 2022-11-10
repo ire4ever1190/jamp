@@ -2,6 +2,10 @@ import jamp/methods
 import jamp/specs/mail
 import jamp/common
 import jamp/jsonptr
+import std/[
+  tables,
+  jsonutils
+]
 import unittest
 import std/options
 import json
@@ -42,6 +46,25 @@ test "Passing reference to previous result":
     "properties": @["id"]
   }
 
+suite "Argument passing":
+  type
+    Foo = object
+    
+  test "Simple passing":
+    proc get(_: typedesc[Foo]; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal, 
+             properties: JPar[seq[string]] = @["id"]): JsonNode =
+      Base.passArgs(get)
+
+    check Foo.get("test")["accountId"].str == "test"
+
+  test "Can pass to generic function":
+    proc set[T](_: typedesc[Foo]; accountId: JPar[string], ifInState: JPar[string] = defaultVal,
+                 create: JPar[Table[string, T]] = defaultVal, 
+                 update: JPar[Table[string, PatchObject]] = defaultVal, 
+                 destroy: JPar[seq[string]] = defaultVal): JsonNode =
+      Base.passArgs(set)
+    check Foo.set("test", destroy = @["test"])["create"].to(typeof(create)) == create
+    
 suite "Filter operators":
   # OR and AND use a template for implementation so they work the same
   test "OR two conditions":
