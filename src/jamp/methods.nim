@@ -192,6 +192,18 @@ template isRef*(param: JPar): bool =
   ## Returns true if **param** is a ResultReference_
   param is ResultReference
 
+when false:
+  proc `%`*[T](param: JPar[T]): JsonNode =
+    const options = ToJsonOptions(
+      enumMode: joptEnumString
+    )
+    when isRef(param):
+      result = ResultReference(param).toJson(options)
+    else:
+      echo $T
+      result = newJNull()
+      # result = ((T.T)(param)).toJson(options)
+
 # Can't call it `isNil` since then it would resolve to systems isNil instead and error
 func eqNil*(param: JPar): bool {.inline, raises: [].} =
   ## Returns true if **param** is `nil`.
@@ -205,11 +217,15 @@ func eqNil*(param: JPar): bool {.inline, raises: [].} =
   else:
     result = false
 
+import typetraits
+
+proc `%`*[T](x: JPar[T]): JsonNode = echo T(x)
+
+
 
 proc `[]=`*(data: JsonNode, key: string, param: JPar) =
   ## Adds a param to the data. This automatically prefixes the key with `#`
   ## if **param** is a ResultReference_
-  mixin toJson
   data[(if param.isRef and not param.eqNil: "#" else: "") & key] = param.toJson(toJOpts)
 
 macro passArgs*(ns: typedesc, name: typed): JsonNode =
@@ -229,6 +245,7 @@ macro passArgs*(ns: typedesc, name: typed): JsonNode =
       )
   #==#
   var prc = newEmptyNode()
+  echo ns, " ", name
   # Force the symbol to be a closed choice and then look for the proc  
   let toLookup = (if name.kind == nnkSym: bindSym(ident $name) else: name)
   for possible in toLookup:
@@ -236,7 +253,8 @@ macro passArgs*(ns: typedesc, name: typed): JsonNode =
     if params.len > 0:
       for param in params:
         let kind = param.getType()
-        if kind.kind == nnkBracketExpr and kind[1].eqIdent(ns):
+        echo kind.treeRepr
+        if kind.kind == nnkBracketExpr and not kind[0].eqIdent("static") and kind[1].eqIdent(ns):
           prc = possible
           break
           
@@ -319,6 +337,6 @@ proc set*[T](_; accountId: JPar[string], ifInState: JPar[string] = defaultVal,
 
 # {.pop.};
   
-export toJson
+export jsonutils
 export json
 export tables

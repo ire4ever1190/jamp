@@ -1,14 +1,13 @@
-import jamp/methods
-import jamp/specs/mail
-import jamp/common
-import jamp/jsonptr
+import jamp
 import std/[
   tables,
-  jsonutils
+  jsonutils,
+  tables
 ]
 import unittest
 import std/options
 import json
+
 
 test "Normal parameters":
   check Base.get("1234", @["1", "2"]) == %* {
@@ -49,7 +48,7 @@ test "Passing reference to previous result":
 suite "Argument passing":
   type
     Foo = object
-    
+
   test "Simple passing":
     proc get(_: typedesc[Foo]; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal, 
              properties: JPar[seq[string]] = @["id"]): JsonNode =
@@ -63,8 +62,8 @@ suite "Argument passing":
                  update: JPar[Table[string, PatchObject]] = defaultVal, 
                  destroy: JPar[seq[string]] = defaultVal): JsonNode =
       Base.passArgs(set)
-    check Foo.set("test", destroy = @["test"])["create"].to(typeof(create)) == create
-    
+    check Foo.set[:string]("test", destroy = @["test"])["destroy"] == %* @["test"]
+
 suite "Filter operators":
   # OR and AND use a template for implementation so they work the same
   test "OR two conditions":

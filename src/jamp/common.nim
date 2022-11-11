@@ -11,7 +11,7 @@ import anano
 
 type
   CoreCapabilities* = object
-    ## See 'capabilites' section `here <https://jmap.io/spec-core.html#the-jmap-session-resource>`_
+    ## See 'capabilites' section [here](https://jmap.io/spec-core.html#the-jmap-session-resource)
     maxSizeUpload*: uint
     maxConcurrentUpload*: uint
     maxSizeRequest*: uint
@@ -89,7 +89,6 @@ const
   allowedIDCharacters = {'a'..'z'} + {'A'..'Z'} + {'0'..'9'} + {'-', '_'}
 
 # Hooks
-
 # An invocation needs to be an array so we need to make the JSON be an array instead
 proc toJsonHook*(call: Invocation): JsonNode =
   result = newJArray()
