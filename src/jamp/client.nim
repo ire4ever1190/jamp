@@ -94,15 +94,18 @@ proc checkResp(resp: Response | AsyncResponse): Future[JsonNode] {.multisync.} =
   elif resp.isJson():
     ## Get better error message stored inside
     let json = body.parseJson()
-    raise (ref JMAPError)(msg: json["detail"].str)
+    raise (ref JMAPError)(msg: json["detail"].str & "\n" & json.pretty())
   else:
     ## Likely isn't json so just use the body as the exception
-    echo resp.headers
-    raise (ref JMAPError)(msg: body)
+    raise (ref JMAPError)(msg: $resp.code & " " & body)
+
+proc hasSession*(client: BaseJMAPClient): bool =
+  ## Returns true if the client has a current session
+  client.session.state != ""
 
 proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JMAPResponse] {.multisync.} =
   ## Perform a raw request to the JMAP server
-  assert client.session.state != "", "Session doesn't exist. You might've forgotten to call startSession()"
+  assert client.hasSession(), "Session doesn't exist. You might've forgotten to call startSession()"
   # Add auth info
   let resp = await client.http.request(
     client.session.apiUrl,
@@ -120,7 +123,7 @@ proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JM
     ))
   elif resp.code == Http401:
     raise (ref JMAPError)(msg: "Authorization required, check details are correct")
-  elif resp.headers["Content-Type"] == "application/problem+json":
+  elif resp.isJson():
     # If its JSON then we can get a better error msg
     let j = resp.body.await().parseJson()
     raise (ref JMAPError)(msg: j["detail"].str)

@@ -192,18 +192,6 @@ template isRef*(param: JPar): bool =
   ## Returns true if **param** is a ResultReference_
   param is ResultReference
 
-when false:
-  proc `%`*[T](param: JPar[T]): JsonNode =
-    const options = ToJsonOptions(
-      enumMode: joptEnumString
-    )
-    when isRef(param):
-      result = ResultReference(param).toJson(options)
-    else:
-      echo $T
-      result = newJNull()
-      # result = ((T.T)(param)).toJson(options)
-
 # Can't call it `isNil` since then it would resolve to systems isNil instead and error
 func eqNil*(param: JPar): bool {.inline, raises: [].} =
   ## Returns true if **param** is `nil`.
@@ -218,10 +206,6 @@ func eqNil*(param: JPar): bool {.inline, raises: [].} =
     result = false
 
 import typetraits
-
-proc `%`*[T](x: JPar[T]): JsonNode = echo T(x)
-
-
 
 proc `[]=`*(data: JsonNode, key: string, param: JPar) =
   ## Adds a param to the data. This automatically prefixes the key with `#`
@@ -253,7 +237,6 @@ macro passArgs*(ns: typedesc, name: typed): JsonNode =
     if params.len > 0:
       for param in params:
         let kind = param.getType()
-        echo kind.treeRepr
         if kind.kind == nnkBracketExpr and not kind[0].eqIdent("static") and kind[1].eqIdent(ns):
           prc = possible
           break

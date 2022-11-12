@@ -4,7 +4,8 @@ import std/[
   jsonutils,
   sets,
   macros,
-  options
+  options,
+  strformat
 ]
 
 import anano
@@ -211,7 +212,7 @@ proc newInvocation*(name: string, args: sink JsonNode, id = ""): Invocation =
     for c in id:
       assert c in allowedIDCharacters, "Invalid character '" & $c & "'"
         
-  assert args.kind == JObject, "args must be a JSON object"
+  assert args.kind == JObject, fmt"args must be a JSON object (Got {args.kind}) {args.pretty()}"
   result = Invocation(
     name: name,
     arguments: args,

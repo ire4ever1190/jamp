@@ -1,4 +1,4 @@
-import std/[osproc, unittest, sequtils, options]
+import std/[osproc, unittest, sequtils, options, strutils]
 import jamp
 
 import jamp/specs/core
@@ -14,12 +14,17 @@ test "Unauthorised requests are handled":
   
   
 let client = newJMAPClient(basicAuth("alice@example.org", "aliceSecret"), "127.0.0.1:80")
+
 test "Start session":
+  client.startSession(insecure=true)
+
+if not client.hasSession():
+  # Still start session. Helpful if running tests other than "Start Session"
   client.startSession(insecure=true)
 
 test "Connection works":
   let body = %* {
-    "foo": "bar" 
+    "foo": "bar"
   }
   let echo = Core.echo(body)
   var request: JMAPRequest
@@ -29,9 +34,12 @@ test "Connection works":
 
 proc findId(name: string): string =
   ## Finds ID for account that has name
+  var names: seq[string]
   for id, account in client.session.accounts:
+    names &= account.name
     if account.name == name:
       return id
+  raise (ref KeyError)(msg: "Can't find " & name & " [Available: " & names.join(", ") & "]")
 
 let
   groupID = findId("everyone")
@@ -44,7 +52,7 @@ suite "Mailboxes":
     )
     check boxes.list.mapIt(it.name) == @["Inbox", "Deleted Items", "Drafts", "Sent Items", "Junk Mail"]
 
-# echo client.request(Email.query(accountID))[]
+
 
 suite "Blobs":
   test "Downloading blob":
@@ -59,7 +67,6 @@ suite "Blobs":
     req &= query
     req &= get
     let resp = client.request(req)
-    echo resp[get].list
     let blobID = resp[get].list[0]["attachments"][0]["blobId"].str
     check client.downloadBlob(accountID, blobID) == "Hello world\n" 
 
