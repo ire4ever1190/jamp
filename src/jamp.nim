@@ -80,5 +80,6 @@ export common
 export helpers
 export json
 export jsonutils
+export tables
 export methods
 export auth

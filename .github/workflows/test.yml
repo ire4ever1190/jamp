@@ -1,12 +1,16 @@
 name: Tests
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - "master"
+  pull_request:
   
 
 jobs:        
   test:
     timeout-minutes: 10
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         nim: ['1.6.0', 'stable', 'devel' ]

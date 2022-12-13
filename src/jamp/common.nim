@@ -3,14 +3,16 @@ import std/[
   tables,
   jsonutils,
   sets,
-  macros
+  macros,
+  options,
+  strformat
 ]
 
 import anano
 
 type
   CoreCapabilities* = object
-    ## See 'capabilites' section `here <https://jmap.io/spec-core.html#the-jmap-session-resource>`_
+    ## See 'capabilites' section [here](https://jmap.io/spec-core.html#the-jmap-session-resource)
     maxSizeUpload*: uint
     maxConcurrentUpload*: uint
     maxSizeRequest*: uint
@@ -64,6 +66,10 @@ type
     methodResponses*: seq[Invocation]
     sessionState*: string
 
+  SetError* = object
+    `type`*: string
+    description*: Option[string]
+
   JMAPError* = object of CatchableError
 
   CallError* = object of JMAPError
@@ -71,13 +77,19 @@ type
     ## before accessing call to avoid
     kind*: string
 
+  AuthorisationError* = object of JMAPError
+    ## Raised when there are problems with authenticating
+
+  Blob* =  object
+    ## Stores information about a [blob](https://jmap.io/spec-core.html#binary-data)
+    accountId*, id*, fileType*: string
+    size*: uint
 
 const
   # from here https://jmap.io/spec-core.html#the-id-data-type 
   allowedIDCharacters = {'a'..'z'} + {'A'..'Z'} + {'0'..'9'} + {'-', '_'}
 
 # Hooks
-
 # An invocation needs to be an array so we need to make the JSON be an array instead
 proc toJsonHook*(call: Invocation): JsonNode =
   result = newJArray()
@@ -91,6 +103,22 @@ proc fromJsonHook*(call: var Invocation, data: JsonNode) =
     arguments: data[1],
     id: data[2].str
   )
+
+proc fromJsonHook*(blob: var Blob, data: JsonNode) =
+  blob = Blob(
+    accountId: data["accountId"].str,
+    id: data["blobId"].str,
+    fileType: data["type"].str,
+    size: data["size"].num.uint
+  )
+
+proc toJsonHook*(blob: Blob): JsonNode =
+  result = %* {
+    "accountId": blob.accountId,
+    "blobId": blob.id,
+    "type": blob.fileType,
+    "size": blob.size
+  }
 
 # Helpers
 
@@ -172,7 +200,6 @@ func id*(call: Call): string {.inline, raises: [].} =
   result = call.invocation.id
 
 
-
 proc newInvocation*(name: string, args: sink JsonNode, id = ""): Invocation =
   ## Creates a new invocation.
   ## If you don't provide an ID then it will auto generate one.
@@ -185,7 +212,7 @@ proc newInvocation*(name: string, args: sink JsonNode, id = ""): Invocation =
     for c in id:
       assert c in allowedIDCharacters, "Invalid character '" & $c & "'"
         
-  assert args.kind == JObject, "args must be a JSON object"
+  assert args.kind == JObject, fmt"args must be a JSON object (Got {args.kind}) {args.pretty()}"
   result = Invocation(
     name: name,
     arguments: args,
