@@ -32,6 +32,7 @@ proc echo*(c: typedesc[Core], args: JsonNode): Call[JsonNode] =
     args,
   )
 
+
 proc copy*(b: typedesc[Blob], srcAccount, destAccount: string, blobs: seq[string]): Call[CopyResponse] =
   ## Copies blobs from **srcAccount** to **destAccount**. This is recommended over downloading and reuploading
   ## the blobs

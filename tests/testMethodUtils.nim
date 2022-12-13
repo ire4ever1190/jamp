@@ -50,19 +50,19 @@ suite "Argument passing":
     Foo = object
 
   test "Simple passing":
-    proc get(_: typedesc[Foo]; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal, 
+    proc get(_: typedesc[Foo]; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal,
              properties: JPar[seq[string]] = @["id"]): JsonNode =
       Base.passArgs(get)
 
     check Foo.get("test")["accountId"].str == "test"
 
   test "Can pass to generic function":
-    proc set[T](_: typedesc[Foo]; accountId: JPar[string], ifInState: JPar[string] = defaultVal,
-                 create: JPar[Table[string, T]] = defaultVal, 
-                 update: JPar[Table[string, PatchObject]] = defaultVal, 
+    proc set(_: typedesc[Foo]; accountId: JPar[string], ifInState: JPar[string] = defaultVal,
+                 create: JPar[Table[string, Foo]] = defaultVal,
+                 update: JPar[Table[string, PatchObject]] = defaultVal,
                  destroy: JPar[seq[string]] = defaultVal): JsonNode =
-      Base.passArgs(set)
-    check Foo.set[:string]("test", destroy = @["test"])["destroy"] == %* @["test"]
+      Base.passArgs(set, Foo)
+    check set(Foo, "test", destroy = @["test"])["destroy"] == %* @["test"]
 
 suite "Filter operators":
   # OR and AND use a template for implementation so they work the same
@@ -80,23 +80,23 @@ suite "Filter operators":
       filter.conditions.len == 3
 
   test "OR two OR filters":
-    var 
+    var
       filterA = newFilter(%* {"foo": "bar"}) or newFilter(%* {"hello": "world"})
       filterB = newFilter(%* {"bar": "baz"}) or newFilter(%* {"another": "one"})
       filter = filterA or filterB
-      
+
     check:
       filter.operator == Or
       filter.conditions.len == 2
       filter.conditions[0] == filterA
       filter.conditions[1] == filterB
-      
+
   test "OR AND & OR filters":
-    var 
+    var
       filterA = newFilter(%* {"foo": "bar"}) or newFilter(%* {"hello": "world"})
       filterB = newFilter(%* {"bar": "baz"}) and newFilter(%* {"another": "one"})
       filter = filterA or filterB
-      
+
     check:
       filter.operator == Or
       filter.conditions.len == 2

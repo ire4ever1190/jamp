@@ -107,6 +107,7 @@ proc get*(mb; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal,
     "Mailbox/get",
     args
   )
+
   
 proc query*(mb; accountId: JPar[string], filter: JPar[FilterOperator | EmailFilter] = defaultVal,
             sort: JPar[seq[Comparator]] = defaultVal, position: JPar[int] = 0,

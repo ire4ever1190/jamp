@@ -186,11 +186,10 @@ func initComparator*(property: string, isAscending = true, collation = ""): Comp
   if collation != "":
     result.collation = some collation
 
-
-
 template isRef*(param: JPar): bool =
   ## Returns true if **param** is a ResultReference_
   param is ResultReference
+
 
 # Can't call it `isNil` since then it would resolve to systems isNil instead and error
 func eqNil*(param: JPar): bool {.inline, raises: [].} =
@@ -212,7 +211,9 @@ proc `[]=`*(data: JsonNode, key: string, param: JPar) =
   ## if **param** is a ResultReference_
   data[(if param.isRef and not param.eqNil: "#" else: "") & key] = param.toJson(toJOpts)
 
-macro passArgs*(ns: typedesc, name: typed): JsonNode =
+
+
+macro passArgs*(ns: typedesc, name: typed, T: typed = nil): JsonNode =
   ## Passes variables from current proc into another. Useful for calling base methods
   runnableExamples "-d:ssl":
     import jamp
@@ -229,7 +230,6 @@ macro passArgs*(ns: typedesc, name: typed): JsonNode =
       )
   #==#
   var prc = newEmptyNode()
-  echo ns, " ", name
   # Force the symbol to be a closed choice and then look for the proc  
   let toLookup = (if name.kind == nnkSym: bindSym(ident $name) else: name)
   for possible in toLookup:
@@ -245,9 +245,11 @@ macro passArgs*(ns: typedesc, name: typed): JsonNode =
     error("Couldn't find " & $name & " for " & $ns, name)
   result = nnkCall.newTree(prc, ns)
   let impl = prc.getImpl()
+  if T.kind != nnkNilLit:
+    result[0] = nnkBracketExpr.newTree(result[0], T)
   for param in impl.params[2..^1]:
     result &= ident($param[0])
-  
+
 macro addParams*(data: JsonNode, params: varargs[untyped]) =
   ## Adds multiple params to **data** with their key being the name of the paramter
   runnableExamples "-d:ssl":
@@ -264,6 +266,8 @@ macro addParams*(data: JsonNode, params: varargs[untyped]) =
     assert "#age" in data
   #==#
   result = newStmtList()
+  result.add quote do:
+    bind toJsonHook
   for param in params:
     let key = newLit $param
     result.add quote do:
