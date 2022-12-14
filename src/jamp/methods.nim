@@ -247,8 +247,9 @@ macro passArgs*(ns: typedesc, name: typed, T: typed = nil): JsonNode =
   let impl = prc.getImpl()
   if T.kind != nnkNilLit:
     result[0] = nnkBracketExpr.newTree(result[0], T)
-  for param in impl.params[2..^1]:
-    result &= ident($param[0])
+  for identDef in impl.params[2..^1]:
+    for param in identDef[0 ..< ^2]:
+      result &= ident($param)
 
 macro addParams*(data: JsonNode, params: varargs[untyped]) =
   ## Adds multiple params to **data** with their key being the name of the paramter
@@ -292,12 +293,14 @@ proc get*(_; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal,
   result = newJObject()
   result.addParams(accountId, ids, properties)
 
-proc changes*(_; accountId: JPar[string], sinceState: JPar[string], maxChanges: JPar[uint] = defaultVal): JsonNode =
+proc changes*(_; accountId, sinceState: JPar[string], maxChanges: JPar[uint] = defaultVal): JsonNode =
   ## Base version of changes defined in the `core spec <https://jmap.io/spec-core.html#changes>`_.
   ## Response for call will likely be in the form of ChangesResponse_
-  assert maxChanges > 0, "maxChanges must be greater than 0"
+  when maxChanges is uint:
+    assert maxChanges > 0, "maxChanges must be greater than 0"
   result = newJObject()
   result.addParams(accountId, sinceState, maxChanges)
+  echo result.pretty()
 
 proc query*(_; accountId: JPar[string], filter: JPar[FilterOperator] = defaultVal,
             sort: JPar[seq[Comparator]] = defaultVal, position: JPar[int] = 0,

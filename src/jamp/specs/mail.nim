@@ -67,6 +67,16 @@ proc set*(m; accountId: JPar[string], ifInState: JPar[string] = defaultVal,
     args
   )
 
+proc changes*(m; accountId, sinceState: JPar[string],
+              maxChanges: JPar[uint] = defaultVal): Call[ChangesResponse] =
+  ## Find any new/updated/deleted emails since **sinceDate**
+  let args = Base.passArgs(changes)
+  result.needed = @[mailCapability, coreCapability]
+  result.invocation = newInvocation(
+    "Email/changes",
+    args
+  )
+
 #
 # Mailbox
 #

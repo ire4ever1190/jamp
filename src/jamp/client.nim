@@ -113,6 +113,9 @@ proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JM
   ## Perform a raw request to the JMAP server
   assert client.hasSession(), "Session doesn't exist. You might've forgotten to call startSession()"
   # Add auth info
+  echo $req.toJson(
+      ToJsonOptions(enumMode: joptEnumString)
+    )
   let resp = await client.http.request(
     client.session.apiUrl,
     HttpPost,
@@ -146,13 +149,13 @@ proc request*[T](client: JMAPClient | AsyncJMAPClient, call: Call[T]): Future[T]
   return resp[call]
 
 type
-  EventHandler* = proc (event: string, changed: Table[string, string])
+  EventHandler* = proc (event: string, changed: StateChange)
 
 proc streamEvents*(client: JMAPClient | AsyncJMAPClient, handler: EventHandler) {.multisync.} =
   let url = client.session.eventSourceUrl.multiReplace({
     "{types}": "*",
     "{closeafter}": "no",
-    "{ping}": "0" # Stalward treats as milliseconds, fastmail as seconds (standard) So I'll just forget about it
+    "{ping}": "5"
   })
   # We use a new client so it wont interfere with any other API calls
   let streamClient = newHttpClient(headers = client.http.headers)
@@ -164,7 +167,10 @@ proc streamEvents*(client: JMAPClient | AsyncJMAPClient, handler: EventHandler) 
   # TODO: Support non chunked
   doAssert resp.headers
     .getOrDefault("Transfer-Encoding") == "chunked", "JAMP currently only supports chunked streams"
-  var lastID: string = ""
+  var
+    lastID = "" # Last event ID. Send this on reconnect to get missed updates
+    lastChange = StateChange() # Keep track of state. We only want to send diff to client
+
   when client is JMAPClient:
     while true:
       let chunkLengthLine = streamClient.socket.recvLine()
@@ -173,22 +179,63 @@ proc streamEvents*(client: JMAPClient | AsyncJMAPClient, handler: EventHandler) 
         break
       elif chunkLengthLine.isEmptyOrWhiteSpace:
         continue
-
-      let chunkLength = chunkLengthLine.parseHexInt()
+      let chunkLength = chunkLengthLine.parseHexInt() + 2 # We want to read the \r\n at the end
+      echo "Reading ", chunkLength
       let data = streamClient.socket.recv(chunkLength)
       # Now parse the event
-      var currEvent = ""
+      var
+        currEvent = ""
+        currData = ""
+        emptyLines = 0
       for line in data.splitLines:
         if line.isEmptyOrWhiteSpace:
+          inc emptyLines
           # Events end with two new lines
-          continue
-        let (ok, key, data) = line.scanTuple("$*: $*")
-        assert ok, "Failed to parse event line: " & line
-        case key
-        of "event":
-          currEvent = key
-        echo key, ": ", data
+          if emptyLines < 2: continue
+          if currData != "":
+            currData.setLen(currData.len - 1) # Strip the final newline
 
+          if currEvent in ["", "ping"]:
+            continue
+          # Get changes and then only run the handler for new types that have changed
+          echo currData
+          let changes = currData.parseJson()["changed"].to(StateChange)
+          var
+            newChanges = StateChange()
+            someChange = false # We don't want to send empty update
+          # Find the difference
+          for account, changes in changes:
+            if account notin lastChange: continue
+            newChanges[account] = initTable[string, string]()
+            for typ, state in changes:
+              let oldState = lastChange[account].getOrDefault(typ, state)
+              if oldState != state:
+                # We send old state so the user can perform Foo/changes with it
+                newChanges[account][typ] = oldState
+                someChange = true
+          lastChange = changes
+          if someChange:
+            handler(currEvent, newChanges)
+          # Event handled, reset state
+          currEvent.setLen(0)
+          currData.setLen(0)
+          emptyLines = 0
+        else:
+          emptyLines = 0
+          let (ok, key, data) = line.scanTuple("$*: $*")
+          assert ok, "Failed to parse event line: " & line
+          case key
+          of "event":
+            currEvent = data
+          of "id":
+            lastID = key
+          of "data":
+            currData &= data & "\n"
+          else:
+            # Fastmail seems to have a line like
+            # : new event source connection
+            # Which I don't understand
+            discard
 proc downloadBlob*(client: JMAPClient | AsyncJMAPClient, accountID, blobID: string,
                   contentType = "file/any", name = "download"): Future[string] {.multisync.} =
   ## Used to download a blob.
