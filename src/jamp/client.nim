@@ -5,7 +5,13 @@ import std/[
   tables,
   strutils,
   jsonutils,
-  uri
+  uri,
+  asyncstreams,
+  streams,
+  importutils,
+  net,
+  asyncnet,
+  strscans
 ]
 
 import common, auth, utils
@@ -138,6 +144,50 @@ proc request*[T](client: JMAPClient | AsyncJMAPClient, call: Call[T]): Future[T]
   req &= call
   let resp = client.request(req)
   return resp[call]
+
+type
+  EventHandler* = proc (event: string, changed: Table[string, string])
+
+proc streamEvents*(client: JMAPClient | AsyncJMAPClient, handler: EventHandler) {.multisync.} =
+  let url = client.session.eventSourceUrl.multiReplace({
+    "{types}": "*",
+    "{closeafter}": "no",
+    "{ping}": "0" # Stalward treats as milliseconds, fastmail as seconds (standard) So I'll just forget about it
+  })
+  # We use a new client so it wont interfere with any other API calls
+  let streamClient = newHttpClient(headers = client.http.headers)
+  defer: close streamClient
+  # We want to handle body streaming ourselves (Normal HTTP client doesn't support streaming)
+  privateAccess(typeof(client.http))
+  streamClient.getBody = false
+  let resp = streamClient.request(url)
+  # TODO: Support non chunked
+  doAssert resp.headers
+    .getOrDefault("Transfer-Encoding") == "chunked", "JAMP currently only supports chunked streams"
+  var lastID: string = ""
+  when client is JMAPClient:
+    while true:
+      let chunkLengthLine = streamClient.socket.recvLine()
+      if chunkLengthLine == "":
+        # TODO: Perform reconnection
+        break
+      elif chunkLengthLine.isEmptyOrWhiteSpace:
+        continue
+
+      let chunkLength = chunkLengthLine.parseHexInt()
+      let data = streamClient.socket.recv(chunkLength)
+      # Now parse the event
+      var currEvent = ""
+      for line in data.splitLines:
+        if line.isEmptyOrWhiteSpace:
+          # Events end with two new lines
+          continue
+        let (ok, key, data) = line.scanTuple("$*: $*")
+        assert ok, "Failed to parse event line: " & line
+        case key
+        of "event":
+          currEvent = key
+        echo key, ": ", data
 
 proc downloadBlob*(client: JMAPClient | AsyncJMAPClient, accountID, blobID: string,
                   contentType = "file/any", name = "download"): Future[string] {.multisync.} =
