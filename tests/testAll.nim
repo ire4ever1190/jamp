@@ -1,4 +1,4 @@
-import std/[osproc, unittest, sequtils, options, strutils]
+import std/[osproc, unittest, sequtils, options, strutils, asyncdispatch]
 import jamp
 
 import jamp/specs/core
@@ -32,18 +32,9 @@ test "Connection works":
   let resp = client.request(request)
   check resp[echo] == body
 
-proc findId(name: string): string =
-  ## Finds ID for account that has name
-  var names: seq[string]
-  for id, account in client.session.accounts:
-    names &= account.name
-    if account.name == name:
-      return id
-  raise (ref KeyError)(msg: "Can't find " & name & " [Available: " & names.join(", ") & "]")
-
 let
-  groupID = findId("everyone")
-  accountID = findId("Alice")
+  groupID = client.findAccount("everyone")
+  accountID = client.findAccount("Alice")
 
 suite "Mailboxes":
   test "Get":
@@ -86,3 +77,15 @@ suite "Blobs":
       resp = client.request(Blob.copy(groupID, accountID, @[origBlob.id]))
       newID = resp.copied.get()[origBlob.id]
     check client.downloadBlob(accountID, newID) == blob
+
+suite "Event Source":
+  test "Something":
+    proc main() {.async.} =
+      let asyncClient = newAsyncJMAPClient(basicAuth("alice@example.org", "aliceSecret"), "127.0.0.1:80")
+      await asyncClient.startSession(insecure=true)
+
+      asyncCheck asyncClient.streamEvents() do (event: string, data: StateChange):
+        echo data
+      discard await asyncClient.uploadBlob(accountID, "text/plain", "Some random shit")
+      await sleepAsync(10000)
+    waitFor main()

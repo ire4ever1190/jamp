@@ -211,7 +211,13 @@ proc `[]=`*(data: JsonNode, key: string, param: JPar) =
   ## if **param** is a ResultReference_
   data[(if param.isRef and not param.eqNil: "#" else: "") & key] = param.toJson(toJOpts)
 
-
+proc findByName*[T](resp: GetResponse[T], name: string): T =
+  ## Searches through items in **resp** and returns first response that has **name**.
+  ## Make sure to request the **name** property if using this
+  for item in resp.list:
+    if item.name == name:
+      return item
+  raise (ref KeyError)(msg: "Cannot find " & $T & " with name: " & name)
 
 macro passArgs*(ns: typedesc, name: typed, T: typed = nil): JsonNode =
   ## Passes variables from current proc into another. Useful for calling base methods

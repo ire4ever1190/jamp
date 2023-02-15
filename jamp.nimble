@@ -12,9 +12,6 @@ srcDir        = "src"
 requires "nim >= 1.7.0"
 requires "anano >= 0.2.0 & < 0.3.0"
 
-task buildContainer, "Builds test mail server container":
-  exec "podman build --tag mail-memory tests/image/"
-
 task startContainer, "Starts the test mail server container":
   try:
     exec "docker run -d -ti -p 80:8080 -p 11200:11200 --name test-mail stalwartlabs/jmap-server:latest --jmap-url=http://localhost"

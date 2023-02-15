@@ -58,7 +58,7 @@ proc newJMAPClient*(auth: AuthHandler, hostname: string): JMAPClient =
   ## will try and auto discover the hostname (This may fail)
   result = newBaseClient[HttpClient](auth, hostname)
 
-proc newAsyncHttpClient*(auth: AuthHandler, hostname: string): AsyncJMAPClient =
+proc newAsyncJMAPClient*(auth: AuthHandler, hostname: string): AsyncJMAPClient =
   ## see newJMAPClient_
   result = newBaseClient[AsyncHttpClient](auth, hostname)
 
@@ -109,9 +109,22 @@ proc hasSession*(client: BaseJMAPClient): bool =
   ## Returns true if the client has a current session
   client.session.state != ""
 
+template checkSession(client: BaseJMAPClient) =
+  ## Internal template that asserts the session exists =
+  assert client.hasSession(), "Session doesn't exist. You might've forgotten to call startSession()"
+
+
+proc findAccount*(client: BaseJMAPClient, name: string): string =
+  ## Returns ID of account that has **name**
+  client.checkSession()
+  for id, account in client.session.accounts:
+    if account.name == name:
+      return id
+  raise (ref KeyError)(msg: "Can't find account: " & name)
+
 proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JMAPResponse] {.multisync.} =
   ## Perform a raw request to the JMAP server
-  assert client.hasSession(), "Session doesn't exist. You might've forgotten to call startSession()"
+  client.checkSession()
   # Add auth info
   echo $req.toJson(
       ToJsonOptions(enumMode: joptEnumString)
@@ -149,21 +162,27 @@ proc request*[T](client: JMAPClient | AsyncJMAPClient, call: Call[T]): Future[T]
   return resp[call]
 
 type
-  EventHandler* = proc (event: string, changed: StateChange)
+  EventHandler* = proc (client: JMAPClient, changed: StateChange)
+  AsyncEventHandler* = proc (client: AsyncJMAPClient, changed: StateChange) {.async.}
 
-proc streamEvents*(client: JMAPClient | AsyncJMAPClient, handler: EventHandler) {.multisync.} =
+proc streamEvents*(client: JMAPClient | AsyncJMAPClient,
+                   handler: EventHandler | AsyncEventHandler) {.multisync.} =
   let url = client.session.eventSourceUrl.multiReplace({
     "{types}": "*",
     "{closeafter}": "no",
-    "{ping}": "5"
+    "{ping}": "0" # Add back in once stalwart merges PR and I understand why I should use it
   })
   # We use a new client so it wont interfere with any other API calls
-  let streamClient = newHttpClient(headers = client.http.headers)
+  when client is JMAPClient:
+    let streamClient = newHttpClient(headers = client.http.headers)
+  else:
+    let streamClient = newAsyncHttpClient(headers = client.http.headers)
+  streamClient.headers["Last-Event-ID"] = "null"
   defer: close streamClient
   # We want to handle body streaming ourselves (Normal HTTP client doesn't support streaming)
   privateAccess(typeof(client.http))
   streamClient.getBody = false
-  let resp = streamClient.request(url)
+  let resp = await streamClient.request(url)
   # TODO: Support non chunked
   doAssert resp.headers
     .getOrDefault("Transfer-Encoding") == "chunked", "JAMP currently only supports chunked streams"
@@ -171,71 +190,71 @@ proc streamEvents*(client: JMAPClient | AsyncJMAPClient, handler: EventHandler) 
     lastID = "" # Last event ID. Send this on reconnect to get missed updates
     lastChange = StateChange() # Keep track of state. We only want to send diff to client
 
-  when client is JMAPClient:
-    while true:
-      let chunkLengthLine = streamClient.socket.recvLine()
-      if chunkLengthLine == "":
-        # TODO: Perform reconnection
-        break
-      elif chunkLengthLine.isEmptyOrWhiteSpace:
-        continue
-      let chunkLength = chunkLengthLine.parseHexInt() + 2 # We want to read the \r\n at the end
-      echo "Reading ", chunkLength
-      let data = streamClient.socket.recv(chunkLength)
-      # Now parse the event
-      var
-        currEvent = ""
-        currData = ""
-        emptyLines = 0
-      for line in data.splitLines:
-        if line.isEmptyOrWhiteSpace:
-          inc emptyLines
-          # Events end with two new lines
-          if emptyLines < 2: continue
-          if currData != "":
-            currData.setLen(currData.len - 1) # Strip the final newline
+  while true:
+    let chunkLengthLine = await streamClient.socket.recvLine()
+    if chunkLengthLine == "":
+      # TODO: Perform reconnection
+      break
+    elif chunkLengthLine.isEmptyOrWhiteSpace:
+      continue
+    let
+      chunkLength = chunkLengthLine.parseHexInt() + 2 # We want to read the \r\n at the end
+      data = await streamClient.socket.recv(chunkLength)
+    # Now parse the event
+    var
+      currEvent = ""
+      currData = ""
+      emptyLines = 0
 
-          if currEvent in ["", "ping"]:
-            continue
-          # Get changes and then only run the handler for new types that have changed
-          echo currData
-          let changes = currData.parseJson()["changed"].to(StateChange)
-          var
-            newChanges = StateChange()
-            someChange = false # We don't want to send empty update
-          # Find the difference
-          for account, changes in changes:
-            if account notin lastChange: continue
-            newChanges[account] = initTable[string, string]()
-            for typ, state in changes:
-              let oldState = lastChange[account].getOrDefault(typ, state)
-              if oldState != state:
-                # We send old state so the user can perform Foo/changes with it
-                newChanges[account][typ] = oldState
-                someChange = true
-          lastChange = changes
-          if someChange:
-            handler(currEvent, newChanges)
-          # Event handled, reset state
-          currEvent.setLen(0)
-          currData.setLen(0)
-          emptyLines = 0
+    for line in data.splitLines:
+      if line.isEmptyOrWhiteSpace:
+        inc emptyLines
+        # Events end with two new lines
+        if emptyLines < 2: continue
+        if currData != "":
+          currData.setLen(currData.len - 1) # Strip the final newline
+
+        if currEvent != "state":
+          continue
+        # Get changes and then only run the handler for new types that have changed
+        echo currData
+        let changes = currData.parseJson()["changed"].to(StateChange)
+        var
+          newChanges = StateChange()
+          someChange = false # We don't want to send empty update
+        # Find the difference
+        for account, changes in changes:
+          if account notin lastChange: continue
+          newChanges[account] = initTable[string, string]()
+          for typ, state in changes:
+            let oldState = lastChange[account].getOrDefault(typ, state)
+            if oldState != state:
+              # We send old state so the user can perform Foo/changes with it
+              newChanges[account][typ] = oldState
+              someChange = true
+        lastChange = changes
+        if someChange:
+          await client.handler(newChanges)
+        # Event handled, reset state
+        currEvent.setLen(0)
+        currData.setLen(0)
+        emptyLines = 0
+      else:
+        emptyLines = 0
+        let (ok, key, data) = line.scanTuple("$*: $*")
+        assert ok, "Failed to parse event line: " & line
+        case key
+        of "event":
+          currEvent = data
+        of "id":
+          lastID = key
+        of "data":
+          currData &= data & "\n"
         else:
-          emptyLines = 0
-          let (ok, key, data) = line.scanTuple("$*: $*")
-          assert ok, "Failed to parse event line: " & line
-          case key
-          of "event":
-            currEvent = data
-          of "id":
-            lastID = key
-          of "data":
-            currData &= data & "\n"
-          else:
-            # Fastmail seems to have a line like
-            # : new event source connection
-            # Which I don't understand
-            discard
+          # Fastmail seems to have a line like
+          # : new event source connection
+          # Which I don't understand
+          discard
 proc downloadBlob*(client: JMAPClient | AsyncJMAPClient, accountID, blobID: string,
                   contentType = "file/any", name = "download"): Future[string] {.multisync.} =
   ## Used to download a blob.
