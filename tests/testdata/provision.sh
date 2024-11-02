@@ -1,19 +1,16 @@
 #!/bin/bash
-curl --proto '=https' --tlsv1.2 -sSf https://jmap-cli.stalw.art/install.sh | sh
 
 function stal() {
-	$HOME/.stalwart/stalwart-cli -c changeme --url http://localhost $@
+	/usr/local/bin/stalwart-cli -c changeme --url http://localhost $@
 }
 
 stal domain create example.org
 
 # Make accounts
-stal account create alice@example.org aliceSecret Alice
-stal account create bob@example.org bobSecret Bob
-
 stal group create everyone@example.org "everyone"
-stal group add-members everyone@example.org alice@example.org bob@example.org
 
+stal account create -a alice@example.org -m "everyone" Alice aliceSecret
+stal account create -a bob@example.org -m "everyone" Bob bobSecret
 
 # Import mail
 stal import messages -f mbox alice@example.org tests/testdata/eml/1.eml
