@@ -57,12 +57,12 @@ suite "Argument passing":
     check Foo.get("test")["accountId"].str == "test"
 
   test "Can pass to generic function":
-    proc set(_: typedesc[Foo]; accountId: JPar[string], ifInState: JPar[string] = defaultVal,
+    proc setVal(_: typedesc[Foo]; accountId: JPar[string], ifInState: JPar[string] = defaultVal,
                  create: JPar[Table[string, Foo]] = defaultVal,
                  update: JPar[Table[string, PatchObject]] = defaultVal,
                  destroy: JPar[seq[string]] = defaultVal): JsonNode =
-      Base.passArgs(set, Foo)
-    check set(Foo, "test", destroy = @["test"])["destroy"] == %* @["test"]
+      Base.passArgs(setVal, Foo)
+    check setVal(Foo, "test", destroy = @["test"])["destroy"] == %* @["test"]
 
 suite "Filter operators":
   # OR and AND use a template for implementation so they work the same
