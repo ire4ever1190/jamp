@@ -314,11 +314,12 @@ proc query*(_; accountId: JPar[string], filter: JPar[FilterOperator] = defaultVa
   result = newJObject()
   result.addParams(accountId, filter, sort, position, anchor, anchorOffset, limit, calculateTotal)
 
-proc set*[T](_; accountId: JPar[string], ifInState: JPar[string] = defaultVal,
+proc setVal*[T](_; accountId: JPar[string], ifInState: JPar[string] = defaultVal,
              create: JPar[Table[string, T]] = defaultVal, 
              update: JPar[Table[string, PatchObject]] = defaultVal, 
              destroy: JPar[seq[string]] = defaultVal): JsonNode =
-  ## Used to create, update, and destroy records of a certain type
+  ## Used to create, update, and destroy records of a certain type.
+  ## setVal is used to avoid collision with set type
   result = newJObject()
   result.addParams(accountId, ifInState, create, update, destroy)
 
