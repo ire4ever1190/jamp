@@ -21,8 +21,22 @@ const
 
 type
   Email* = object
+    # Metadata fields
+    id*: string
+    blobId*: string
+    mailboxIds*: seq[string]
+    keywords*: Table[string, bool]
+    size*: uint
+    # Convience properties
+    subject: string
+    # Body
+    textBody*: seq[EmailBodyPart]
+  EmailHeader* = object
+  EmailBodyPart* = object
+    name*: string
+    `type`*: string
+
   EmailFilter* = object
-  MailGet* = GetResponse[JsonNode]
 
 #
 # Email
@@ -31,7 +45,7 @@ type
 using m: typedesc[Email]
 
 proc get*(m; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal, 
-          properties: JPar[seq[string]] = @["id"]): Call[MailGet] =
+          properties: JPar[seq[string]] = @["id"]): Call[GetResponse[Email]] =
   ## Same as base get.
   let args = Base.passArgs(get)
   result.needed = @[mailCapability, coreCapability]
@@ -64,6 +78,16 @@ proc setVal*(m; accountId: JPar[string], ifInState: JPar[string] = defaultVal,
   result.needed = @[mailCapability, coreCapability]
   result.invocation = newInvocation(
     "Email/set",
+    args
+  )
+
+proc changes*(m; accountId, sinceState: JPar[string],
+              maxChanges: JPar[uint] = defaultVal): Call[ChangesResponse] =
+  ## Find any new/updated/deleted emails since **sinceDate**
+  let args = Base.passArgs(changes)
+  result.needed = @[mailCapability, coreCapability]
+  result.invocation = newInvocation(
+    "Email/changes",
     args
   )
 

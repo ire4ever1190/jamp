@@ -85,6 +85,10 @@ type
     accountId*, id*, fileType*: string
     size*: uint
 
+  StateChange* = Table[string, Table[string, string]]
+    ## Stores [StateChanges](https://jmap.io/spec-core.html#the-statechange-object) for types.
+    ## The first key is the account ID which maps to pairs of types (e.g. Email, Mailbox) to their state ID
+
 const
   # from here https://jmap.io/spec-core.html#the-id-data-type 
   allowedIDCharacters = {'a'..'z'} + {'A'..'Z'} + {'0'..'9'} + {'-', '_'}
