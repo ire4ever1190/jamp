@@ -17,10 +17,10 @@ task buildContainer, "Builds test mail server container":
 
 task startContainer, "Starts the test mail server container":
   try:
-    exec "docker run -d -ti -p 80:8080 -p 11200:11200 --name test-mail stalwartlabs/jmap-server:latest --jmap-url=http://localhost"
+    exec "docker run -d --network host -v $PWD/tests/testdata/config.toml:/opt/stalwart/etc/config.toml:ro --name test-mail stalwartlabs/stalwart:latest"
   except OSError:
     exec "docker start test-mail"
-  exec "sleep 1 && bash tests/testdata/provision.sh"
+  exec "bash tests/testdata/provision.sh"
     
 task stopContainer, "Stops the test mail server container":
   exec "docker stop --time 0 test-mail"

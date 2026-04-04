@@ -1,22 +1,99 @@
 #!/bin/bash
-curl --proto '=https' --tlsv1.2 -sSf https://jmap-cli.stalw.art/install.sh | sh
+set -e
 
-function stal() {
-	$HOME/.stalwart/stalwart-cli -c changeme --url http://localhost $@
-}
+API_URL="http://localhost:80/api"
+CONTAINER_NAME="${CONTAINER_NAME:-test-mail}"
 
-stal domain create example.org
+echo "Waiting for server to be ready..."
+sleep 5
 
-# Make accounts
-stal account create alice@example.org aliceSecret Alice
-stal account create bob@example.org bobSecret Bob
+# Use fixed admin password for testing
+ADMIN_PASSWORD="admin"
 
-stal group create everyone@example.org "everyone"
-stal group add-members everyone@example.org alice@example.org bob@example.org
+echo "Using admin password for provisioning..."
 
+# Create domain (ignore if already exists)
+echo "Creating domain example.org..."
+DOMAIN_RESPONSE=$(curl -s -u "admin:${ADMIN_PASSWORD}" -X POST "${API_URL}/principal" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "domain",
+    "name": "example.org",
+    "quota": 0,
+    "description": "Example domain"
+  }')
 
-# Import mail
-stal import messages -f mbox alice@example.org tests/testdata/eml/1.eml
-stal import messages -f mbox alice@example.org tests/testdata/eml/2.eml
-stal import messages -f mbox alice@example.org tests/testdata/eml/3.eml
+if echo "$DOMAIN_RESPONSE" | grep -q '"data"'; then
+  DOMAIN_ID=$(echo "$DOMAIN_RESPONSE" | grep -o '"data":[0-9]*' | cut -d':' -f2)
+  echo "Domain created with ID: $DOMAIN_ID"
+else
+  echo "Domain already exists or creation failed"
+  DOMAIN_ID=""
+fi
+
+# Create Alice
+echo "Creating account alice@example.org..."
+ALICE_ID=$(curl -s -u "admin:${ADMIN_PASSWORD}" -X POST "${API_URL}/principal" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "individual",
+    "name": "alice",
+    "quota": 0,
+    "description": "Alice",
+    "emails": ["alice@example.org"],
+    "secrets": ["aliceSecret"],
+    "roles": ["user"]
+  }' | grep -o '"data":[0-9]*' | cut -d':' -f2)
+
+echo "Alice account created with ID: $ALICE_ID"
+
+# Create Bob
+echo "Creating account bob@example.org..."
+BOB_ID=$(curl -s -u "admin:${ADMIN_PASSWORD}" -X POST "${API_URL}/principal" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "individual",
+    "name": "bob",
+    "quota": 0,
+    "description": "Bob",
+    "emails": ["bob@example.org"],
+    "secrets": ["bobSecret"],
+    "roles": ["user"]
+  }' | grep -o '"data":[0-9]*' | cut -d':' -f2)
+
+echo "Bob account created with ID: $BOB_ID"
+
+# Create group
+echo "Creating group everyone@example.org..."
+GROUP_ID=$(curl -s -u "admin:${ADMIN_PASSWORD}" -X POST "${API_URL}/principal" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "group",
+    "name": "everyone",
+    "quota": 0,
+    "description": "Everyone group",
+    "emails": ["everyone@example.org"]
+  }' | grep -o '"data":[0-9]*' | cut -d':' -f2)
+
+echo "Group created with ID: $GROUP_ID"
+
+# Add members to group
+echo "Adding members to group..."
+curl -s -u "admin:${ADMIN_PASSWORD}" -X PATCH "${API_URL}/principal/${GROUP_ID}" \
+  -H "Content-Type: application/json" \
+  -d '[
+    {"action": "addItem", "field": "members", "value": "alice@example.org"},
+    {"action": "addItem", "field": "members", "value": "bob@example.org"}
+  ]' > /dev/null
+
+echo "Provisioning complete!"
+echo "Alice ID: $ALICE_ID"
+echo "Bob ID: $BOB_ID"
+echo "Group ID: $GROUP_ID"
+
+echo "Importing test emails..."
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+docker cp "${SCRIPT_DIR}/eml" "${CONTAINER_NAME}:/tmp/eml"
+docker exec "${CONTAINER_NAME}" bash -c 'for f in /tmp/eml/*.eml; do cat "$f"; echo ""; done | /usr/local/bin/stalwart-cli -u http://localhost:80 -c admin:admin import messages -f mbox alice -'
+echo "Email import complete!"
 

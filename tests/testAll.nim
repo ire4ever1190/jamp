@@ -1,4 +1,4 @@
-import std/[osproc, unittest, sequtils, options, strutils]
+import std/[osproc, unittest, sequtils, options, strutils, algorithm]
 import jamp
 
 import jamp/specs/core
@@ -6,14 +6,14 @@ import jamp/specs/core
 
 test "Unauthorised requests are handled":
   try:
-    let client = newJMAPClient(basicAuth("alice@example.org", "incorrect"), "127.0.0.1:80")
+    let client = newJMAPClient(basicAuth("alice", "incorrect"), "127.0.0.1:80")
     client.startSession(insecure=true)
     check false
   except JMapError as e:
     check e.msg == "Auth details are incorrect"
-  
-  
-let client = newJMAPClient(basicAuth("alice@example.org", "aliceSecret"), "127.0.0.1:80")
+   
+   
+let client = newJMAPClient(basicAuth("alice", "aliceSecret"), "127.0.0.1:80")
 
 test "Start session":
   client.startSession(insecure=true)
@@ -42,15 +42,14 @@ proc findId(name: string): string =
   raise (ref KeyError)(msg: "Can't find " & name & " [Available: " & names.join(", ") & "]")
 
 let
-  groupID = findId("everyone")
-  accountID = findId("Alice")
+  accountID = findId("alice")
 
 suite "Mailboxes":
   test "Get":
     let boxes = client.request(
       Mailbox.get(accountID, properties = Mailbox.props(id, name))
     )
-    check boxes.list.mapIt(it.name) == @["Inbox", "Deleted Items", "Drafts", "Sent Items", "Junk Mail"]
+    check sorted(boxes.list.mapIt(it.name)) == @["Deleted Items", "Drafts", "Inbox", "Junk Mail", "Sent Items"]
 
 
 
@@ -82,7 +81,7 @@ suite "Blobs":
   test "Copying blob":
     const blob = "hello wolrd"
     let
-      origBlob = client.uploadBlob(groupID, "text/plain", blob)
-      resp = client.request(Blob.copy(groupID, accountID, @[origBlob.id]))
+      origBlob = client.uploadBlob(accountID, "text/plain", blob)
+      resp = client.request(Blob.copy(accountID, accountID, @[origBlob.id]))
       newID = resp.copied.get()[origBlob.id]
     check client.downloadBlob(accountID, newID) == blob
