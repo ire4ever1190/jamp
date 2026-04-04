@@ -2,3 +2,4 @@ token
 nimble.develop
 nimble.paths
 nimbledeps
+nimble.lock
