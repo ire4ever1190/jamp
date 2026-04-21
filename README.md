@@ -2,20 +2,22 @@
 
 > I can't think of a good name so why not jamp?
 
+[docs](https://ire4ever1190.github.io/jamp/)
+
 [JMAP](https://jmap.io/) client that I made. Bit rough at the moment and the API could still change.
 
 ### Implemented
-- [x] [Core](https://jmap.io/spec-core.html)
-- [ ] [Mail](https://jmap.io/spec-mail.html) (in progress)
+- [x] [Core](https://jmap.io/spec/rfc8620/)
+- [ ] [Mail](https://jmap.io/spec/rfc8621/) (in progress)
 - [ ] Push
-- [ ] [WebSocket](https://www.rfc-editor.org/rfc/rfc8887.html)
+- [ ] [WebSocket](https://jmap.io/spec/rfc8887/)
 
 Specifications that I'm waiting to be finished before implementing
 
-- [Calendars](https://jmap.io/spec-calendars.html)
-- [Sharing](https://jmap.io/spec-sharing.html)
-- [Contacts](https://jmap.io/spec-contacts.html)
-- [Tasks](https://jmap.io/spec-tasks.html) 
+- [Calendars](https://jmap.io/spec/calendars-draft/)
+- [Sharing](https://jmap.io/spec/rfc9670/)
+- [Contacts](https://jmap.io/spec/rfc9610/)
+- [Tasks](https://www.ietf.org/archive/id/draft-ietf-jmap-tasks-03.html) 
 
 
 ## Contributing
