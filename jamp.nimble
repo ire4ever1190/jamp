@@ -9,7 +9,7 @@ srcDir        = "src"
 
 # Dependencies
 
-requires "nim >= 1.6.0"
+requires "nim >= 2.2.4"
 requires "anano >= 0.2.0 & < 0.3.0"
 
 task buildContainer, "Builds test mail server container":
@@ -21,7 +21,7 @@ task startContainer, "Starts the test mail server container":
   except OSError:
     exec "docker start test-mail"
   exec "bash tests/testdata/provision.sh"
-    
+
 task stopContainer, "Stops the test mail server container":
   exec "docker stop --time 0 test-mail"
   exec "docker rm test-mail"

@@ -48,9 +48,9 @@ type
     oldState*, newState*: string
     hasMoreChanges*: bool
     created*, updated*, destroyed*: seq[string]
-    
+
   SetResponse*[T] = ref object of RootObj
-    ## Shows information about what operations were successful/failed    
+    ## Shows information about what operations were successful/failed
     accountId*: string
     oldState*: Option[string]
     newState*: string
@@ -58,14 +58,14 @@ type
     updated*: Option[Table[string, Option[T]]]
     destroyed*: Option[seq[string]]
     notCreated*, notUpdated*, notDestroyed*: Option[Table[string, SetError]]
-    
+
 
   SetError* = object
     ## Error object that is in SetResponse_ when a record fails to be created, updated, or destroyed
     `type`*: string
     description: Option[string]
 
-  CopyResponse*[T] = ref object of RootObj 
+  CopyResponse*[T] = ref object of RootObj
     ## Response from Copy method.
     ## **Created** might contain a slimmed down version of the full type, always check the spec to see
     fromAccountId*, accountId*: string
@@ -124,11 +124,11 @@ type
     # Also means we can define helpers without knowing what the Condition will look like
 
   PatchObject* = Table[string, JsonNode]
-    
+
   Base* = object
     ## Namespace for default methods
 
-{.experimental: "dynamicBindSym".} 
+{.experimental: "dynamicBindSym".}
 
 using _: typedesc[Base]
 
@@ -179,7 +179,7 @@ func toJsonHook*(op: FilterOperator): JsonNode =
     result["operator"] = %op.operator
     result["conditions"] = op.conditions.toJson(toJOpts)
 
-func initComparator*(property: string, isAscending = true, collation = ""): Comparator {.raises: [].} = 
+func initComparator*(property: string, isAscending = true, collation = ""): Comparator {.raises: [].} =
   ## Creates a new comparator to be used in JMAP methods
   result.property = property
   result.isAscending = isAscending
@@ -211,57 +211,18 @@ proc `[]=`*(data: JsonNode, key: string, param: JPar) =
   ## if **param** is a ResultReference_
   data[(if param.isRef and not param.eqNil: "#" else: "") & key] = param.toJson(toJOpts)
 
-
-
-macro passArgs*(ns: typedesc, name: typed, T: typed = nil): JsonNode =
-  ## Passes variables from current proc into another. Useful for calling base methods
-  runnableExamples "-d:ssl":
-    import jamp
-    
-    type Foo = object
-
-    proc get*(_: typedesc[Foo]; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal, 
-              properties: JPar[seq[string]] = @["id"]): Call[string] =
-      let args = Base.passArgs(get)
-      # Add extra params if needed
-      result.invocation = newInvocation(
-        "Foo/get",
-        args
-      )
-  #==#
-  var prc = newEmptyNode()
-  # Force the symbol to be a closed choice and then look for the proc  
-  let toLookup = (if name.kind == nnkSym: bindSym(ident $name) else: name)
-  for possible in toLookup:
-    let params = possible.getImpl()[2]
-    if params.len > 0:
-      for param in params:
-        let kind = param.getType()
-        if kind.kind == nnkBracketExpr and not kind[0].eqIdent("static") and kind[1].eqIdent(ns):
-          prc = possible
-          break
-          
-  if prc.kind == nnkEmpty:
-    error("Couldn't find " & $name & " for " & $ns, name)
-  result = nnkCall.newTree(prc, ns)
-  let impl = prc.getImpl()
-  if T.kind != nnkNilLit:
-    result[0] = nnkBracketExpr.newTree(result[0], T)
-  for param in impl.params[2..^1]:
-    result &= ident($param[0])
-
 macro addParams*(data: JsonNode, params: varargs[untyped]) =
   ## Adds multiple params to **data** with their key being the name of the paramter
   runnableExamples "-d:ssl":
     import jamp
     import std/json
-    
+
     let
       name: JPar[string] = "hello"
       age: JPar[int] = ResultReference()
     var data = newJObject()
     data.addParams(name, age)
-    
+
     assert "name" in data
     assert "#age" in data
   #==#
@@ -275,7 +236,7 @@ macro addParams*(data: JsonNode, params: varargs[untyped]) =
 
 #
 # Base versions
-# 
+#
 
 
 
@@ -285,7 +246,7 @@ const defaultVal* = ResultReference(nil)
 
 # {.push raises: [].}
 
-proc get*(_; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal, 
+proc get*(_; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal,
           properties: JPar[seq[string]] = @["id"]): JsonNode =
   ## Base version of get defined in the `core spec <https://jmap.io/spec-core.html#get>`_.
   ## Response for call will likely be in the form of GetResponse_
@@ -315,8 +276,8 @@ proc query*(_; accountId: JPar[string], filter: JPar[FilterOperator] = defaultVa
   result.addParams(accountId, filter, sort, position, anchor, anchorOffset, limit, calculateTotal)
 
 proc setVal*[T](_; accountId: JPar[string], ifInState: JPar[string] = defaultVal,
-             create: JPar[Table[string, T]] = defaultVal, 
-             update: JPar[Table[string, PatchObject]] = defaultVal, 
+             create: JPar[Table[string, T]] = defaultVal,
+             update: JPar[Table[string, PatchObject]] = defaultVal,
              destroy: JPar[seq[string]] = defaultVal): JsonNode =
   ## Used to create, update, and destroy records of a certain type.
   ## setVal is used to avoid collision with set type
@@ -324,7 +285,7 @@ proc setVal*[T](_; accountId: JPar[string], ifInState: JPar[string] = defaultVal
   result.addParams(accountId, ifInState, create, update, destroy)
 
 # {.pop.};
-  
+
 export jsonutils
 export json
 export tables

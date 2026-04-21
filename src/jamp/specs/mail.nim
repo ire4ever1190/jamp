@@ -1,5 +1,5 @@
 ##[
-  Implments the `mail spec <https://jmap.io/spec-mail.html>`_ which enables the capabilities of 
+  Implments the `mail spec <https://jmap.io/spec-mail.html>`_ which enables the capabilities of
     - `urn:ietf:params:jmap:mail`
     - `urn:ietf:params:jmap:submission`
     - `urn:ietf:params:jmap:vacationresponse`
@@ -30,10 +30,10 @@ type
 
 using m: typedesc[Email]
 
-proc get*(m; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal, 
+proc get*(m; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal,
           properties: JPar[seq[string]] = @["id"]): Call[MailGet] =
   ## Same as base get.
-  let args = Base.passArgs(get)
+  let args = Base.get(accountId, ids, properties)
   result.needed = @[mailCapability, coreCapability]
   result.invocation = newInvocation(
     "Email/get",
@@ -43,13 +43,13 @@ proc get*(m; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal,
 proc query*(m; accountId: JPar[string], filter: JPar[FilterOperator] = defaultVal,
             sort: JPar[seq[Comparator]] = defaultVal, position: JPar[int] = 0,
             anchor: JPar[string] = defaultVal, anchorOffset: JPar[int] = 0,
-            limit: JPar[uint] = defaultVal, calculateTotal: JPar[bool] = false, 
+            limit: JPar[uint] = defaultVal, calculateTotal: JPar[bool] = false,
             collapseThreads: JPar[bool] = false): Call[QueryResponse] =
   ## Query emails stored on server.
   ##
   ## * **collapseThreads**: Only one email per thread will be returned if true
   # let args = Base.query[EmailFilter](accountId, filter, sort, position, anchor, anchorOffset, limit, calculateTotal)
-  let args = Base.passArgs(query)
+  let args = Base.query(accountId, filter, sort, position, anchor, anchorOffset, limit, calculateTotal)
   args["collapseThreads"] = collapseThreads
   result.needed = @[mailCapability, coreCapability]
   result.invocation = newInvocation(
@@ -58,9 +58,9 @@ proc query*(m; accountId: JPar[string], filter: JPar[FilterOperator] = defaultVa
   )
 
 proc setVal*(m; accountId: JPar[string], ifInState: JPar[string] = defaultVal,
-          create: JPar[Table[string, Email]] = defaultVal, update: JPar[Table[string, PatchObject]] = defaultVal, 
+          create: JPar[Table[string, Email]] = defaultVal, update: JPar[Table[string, PatchObject]] = defaultVal,
           destroy: JPar[seq[string]] = defaultVal, onDestroyRemoveEmails: JPar[bool] = defaultVal): Call[SetResponse[Email]] =
-  let args = Base.passArgs(setVal, Email)
+  let args = Base.setVal[:Email](accountId, ifInState, create, update, destroy, onDestroyRemoveEmails)
   result.needed = @[mailCapability, coreCapability]
   result.invocation = newInvocation(
     "Email/set",
@@ -99,30 +99,25 @@ func fromJson*(rights: var set[MailboxRight], data: JsonNode) =
 using mb: typedesc[Mailbox]
 
 
-proc get*(mb; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal, 
+proc get*(mb; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal,
           properties: JPar[seq[string]] = @["id"]): Call[GetResponse[Mailbox]] =
-  let args = Base.passArgs(get)
+  let args = Base.get(accountId, ids, properties)
   result.needed = @[mailCapability, coreCapability]
   result.invocation = newInvocation(
     "Mailbox/get",
     args
   )
 
-  
+
 proc query*(mb; accountId: JPar[string], filter: JPar[FilterOperator | EmailFilter] = defaultVal,
             sort: JPar[seq[Comparator]] = defaultVal, position: JPar[int] = 0,
             anchor: JPar[string] = defaultVal, anchorOffset: JPar[int] = 0,
             limit: JPar[uint] = defaultVal, calculateTotal: JPar[bool] = false,
             sortAsTree: JPar[bool] = false, filterAsTree: JPar[bool] = false): Call[QueryResponse] =
-  let args = Base.passArgs(query)
+  let args = Base.query(accountId, filter, sort, position, anchor, anchorOffset, limit, calculateTotal)
   args.addParams(sortAsTree, filterAsTree)
   result.needed = @[mailCapability, coreCapability]
   result.invocation = newInvocation(
     "Mailbox/query",
     args
   )
-
-
-  
-
-
