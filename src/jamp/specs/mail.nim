@@ -31,9 +31,12 @@ type
 using m: typedesc[Email]
 
 proc get*(m; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal,
-          properties: JPar[seq[string]] = @["id"]): Call[MailGet] =
+          properties: JPar[seq[string]] = @["id"],
+          bodyProperties: JPar[seq[string]] = @["partId", "blobId", "size", "name", "type", "charset", "disposition", "cid", "language", "location"],
+          fetchTextBodyValues: JPar[bool] = false, fetchHTMLBodyValues: JPar[bool] = false): Call[MailGet] =
   ## Same as base get.
   let args = Base.get(accountId, ids, properties)
+  args.addParams(bodyProperties, fetchHTMLBodyValues, fetchTextBodyValues)
   result.needed = @[mailCapability, coreCapability]
   result.invocation = newInvocation(
     "Email/get",
@@ -60,7 +63,8 @@ proc query*(m; accountId: JPar[string], filter: JPar[FilterOperator] = defaultVa
 proc setVal*(m; accountId: JPar[string], ifInState: JPar[string] = defaultVal,
           create: JPar[Table[string, Email]] = defaultVal, update: JPar[Table[string, PatchObject]] = defaultVal,
           destroy: JPar[seq[string]] = defaultVal, onDestroyRemoveEmails: JPar[bool] = defaultVal): Call[SetResponse[Email]] =
-  let args = Base.setVal[:Email](accountId, ifInState, create, update, destroy, onDestroyRemoveEmails)
+  let args = Base.setVal[:Email](accountId, ifInState, create, update, destroy)
+  args.addParams(onDestroyRemoveEmails)
   result.needed = @[mailCapability, coreCapability]
   result.invocation = newInvocation(
     "Email/set",

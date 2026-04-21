@@ -3,12 +3,22 @@ set -e
 
 API_URL="http://localhost:80/api"
 CONTAINER_NAME="${CONTAINER_NAME:-test-mail}"
+ADMIN_PASSWORD="admin"
 
 echo "Waiting for server to be ready..."
-sleep 5
-
-# Use fixed admin password for testing
-ADMIN_PASSWORD="admin"
+MAX_RETRIES=30
+for i in $(seq 1 $MAX_RETRIES); do
+  if curl -sf -u "admin:${ADMIN_PASSWORD}" "${API_URL}/principal" > /dev/null 2>&1; then
+    echo "Server is ready!"
+    break
+  fi
+  if [ "$i" -eq "$MAX_RETRIES" ]; then
+    echo "Server failed to start after $MAX_RETRIES retries"
+    exit 1
+  fi
+  echo "Waiting... (attempt $i/$MAX_RETRIES)"
+  sleep 2
+done
 
 echo "Using admin password for provisioning..."
 
