@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.2.0"
+version       = "0.2.1"
 author        = "Jake Leahy"
 description   = "JMAP library for nim"
 license       = "MIT"
@@ -11,7 +11,7 @@ srcDir        = "src"
 
 requires "nim >= 2.2.4"
 requires "anano >= 0.2.0 & < 0.3.0"
-requires "casserole >= 0.3.0"
+requires "gh:ire4ever1190/casserole >= 0.3.0"
 
 task buildContainer, "Builds test mail server container":
   exec "podman build --tag mail-memory tests/image/"
