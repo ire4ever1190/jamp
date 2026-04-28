@@ -7,10 +7,10 @@
   Use this module if you want to perform any mail related operations
 ]##
 
-import std/[json, options, strutils, tables]
+import std/[json, options, strutils, tables, times, jsonutils]
 
 import ../methods
-import ../common
+import ../[common, helpers]
 
 import core
 
@@ -22,7 +22,30 @@ const
 type
   Email* = object
   EmailFilter* = object
-  MailGet* = GetResponse[JsonNode]
+  EmailObj* = JsonNode
+  MailGet* = GetResponse[EmailObj]
+
+  EmailImport* = object
+    ## Represents an email that has been imported
+    blobId*: string ## ID of blob to get EML object from
+    mailboxIds*: Table[string, bool] ## IDs to assign the mail to. At least one must be given
+    keywords*: Table[string, bool] ## Keywords to apply to email
+    receivedAt*: DateTime
+
+  ImportedEmails* = object
+    accountId*: string
+    oldState*: Option[string]
+    newState*: string
+    created*: Option[Table[string, EmailObj]]
+    notCreated*: Option[Table[string, SetError]]
+
+proc toJsonHook*(email: EmailImport): JsonNode =
+  result = %*{
+    "blobId": %email.blobId,
+    "mailboxIds": email.mailboxIds.toJson(),
+    "keywords": email.keywords.toJson(),
+    "receivedAt": email.receivedAt.formatUTCDate().toJson()
+  }
 
 #
 # Email
@@ -69,6 +92,28 @@ proc setVal*(m; accountId: JPar[string], ifInState: JPar[string] = defaultVal,
     "Email/set",
     args
   )
+
+
+proc changes*(m; accountId, sinceState: JPar[string],
+              maxChanges: JPar[uint] = defaultVal): Call[ChangesResponse] =
+  ## Find any new/updated/deleted emails since **sinceDate**
+  let args = Base.changes(accountId, sinceState, maxChanges)
+  result.needed = @[mailCapability, coreCapability]
+  result.invocation = newInvocation(
+    "Email/changes",
+    args
+  )
+
+
+proc importMail*(m; accountId: JPar[string], ifInState: JPar[string] = defaultVal, emails: Table[string, EmailImport]): Call[ImportedEmails] =
+  result.needed = @[mailCapability, coreCapability]
+  let args = newJObject()
+  args.addParams(accountId, ifInState, emails)
+  result.invocation = newInvocation(
+    "Email/import",
+    args
+  )
+
 
 #
 # Mailbox

@@ -52,8 +52,8 @@ proc newJMAPClient*(auth: AuthHandler, hostname: string): JMAPClient =
   ## will try and auto discover the hostname (This may fail)
   result = newBaseClient[HttpClient](auth, hostname)
 
-proc newAsyncHttpClient*(auth: AuthHandler, hostname: string): AsyncJMAPClient =
-  ## see newJMAPClient_
+proc newAsyncJMAPClient*(auth: AuthHandler, hostname: string): AsyncJMAPClient =
+  ## see [newJMAPClient]
   result = newBaseClient[AsyncHttpClient](auth, hostname)
 
 
@@ -125,7 +125,9 @@ proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JM
     raise (ref JMAPError)(msg: "Authorization required, check details are correct")
   elif resp.isJson():
     # If its JSON then we can get a better error msg
-    let j = resp.body.await().parseJson()
+    let
+      body = resp.body.await()
+      j = body.parseJson()
     raise (ref JMAPError)(msg: j["detail"].str)
   else:
     raise (ref JMAPError)(msg: await resp.body)
@@ -158,5 +160,5 @@ proc uploadBlob*(client: JMAPClient | AsyncJMAPClient, accountID, contentType, b
     "Content-Type": contentType
   })
   result.fromJson(await resp.checkResp())
-    
+
 export uri

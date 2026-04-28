@@ -20,10 +20,11 @@ import std/[
   tables,
   json,
   jsonutils,
-  macros
+  macros,
+  times
 ]
 
-import common
+import ./[common, helpers]
 
 type
   JPar*[T: not ResultReference] = T or ResultReference
@@ -58,12 +59,6 @@ type
     updated*: Option[Table[string, Option[T]]]
     destroyed*: Option[seq[string]]
     notCreated*, notUpdated*, notDestroyed*: Option[Table[string, SetError]]
-
-
-  SetError* = object
-    ## Error object that is in SetResponse_ when a record fails to be created, updated, or destroyed
-    `type`*: string
-    description: Option[string]
 
   CopyResponse*[T] = ref object of RootObj
     ## Response from Copy method.
@@ -242,7 +237,6 @@ macro addParams*(data: JsonNode, params: varargs[untyped]) =
 
 const defaultVal* = ResultReference(nil)
   ## Use this to specify that the server should use the default value for the parameter
-  # I ran into a compiler error if I used nil so I instead use this which doesn't error =)
 
 # {.push raises: [].}
 
@@ -256,9 +250,10 @@ proc get*(_; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal,
 proc changes*(_; accountId: JPar[string], sinceState: JPar[string], maxChanges: JPar[uint] = defaultVal): JsonNode =
   ## Base version of changes defined in the `core spec <https://jmap.io/spec-core.html#changes>`_.
   ## Response for call will likely be in the form of ChangesResponse_
-  assert maxChanges > 0, "maxChanges must be greater than 0"
+  when maxChanges is uint:
+    assert maxChanges > 0, "maxChanges must be greater than 0"
   result = newJObject()
-  result.addParams(accountId, sinceState, maxChanges)
+  result.addParams(accountId, maxChanges, sinceState)
 
 proc query*(_; accountId: JPar[string], filter: JPar[FilterOperator] = defaultVal,
             sort: JPar[seq[Comparator]] = defaultVal, position: JPar[int] = 0,
@@ -274,6 +269,23 @@ proc query*(_; accountId: JPar[string], filter: JPar[FilterOperator] = defaultVa
   ## * **calculateTotal**: Returns total amount of items in response. Is slow for large data/filters so be careful
   result = newJObject()
   result.addParams(accountId, filter, sort, position, anchor, anchorOffset, limit, calculateTotal)
+
+proc queryChanges*(_; accountId: JPar[string], sinceQueryState: JPar[string],
+                   filter: JPar[FilterOperator] = defaultVal,
+                   sort: JPar[seq[Comparator]] = defaultVal,
+                   maxChanges: JPar[uint] = defaultVal,
+                   upTold: JPar[string] = defaultVal,
+                   calculateTotal: JPar[bool] = false): JsonNode =
+  ## Used to check if there has been any changes since [query] last ran. From [core spec](https://jmap.io/spec/rfc8620/#section-5.6).
+  ##
+  ## * **sinceQueryState**: Current state of the query. This is returned when making a [query]
+  ## * **filter**: Set of filters to query with. `Q` is a spec defined object for querying
+  ## * **sort**: List of comparators to use. If the first returns `true` then the second is used etc...
+  ## * **maxChanges**: Max changes to return in the response
+  ## * **upTold**: [See spec](https://jmap.io/spec/rfc8620/#section-5.6-2.6.1)
+  ## * **calculateTotal**: [See spec](https://jmap.io/spec/rfc8620/#section-5.6-2.7.1)
+  result = newJObject()
+  result.addParams(accountId, sinceQueryState, filter, sort, maxChanges, upTold, calculateTotal)
 
 proc setVal*[T](_; accountId: JPar[string], ifInState: JPar[string] = defaultVal,
              create: JPar[Table[string, T]] = defaultVal,

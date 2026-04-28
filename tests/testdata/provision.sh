@@ -104,6 +104,5 @@ echo "Group ID: $GROUP_ID"
 echo "Importing test emails..."
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 docker cp "${SCRIPT_DIR}/eml" "${CONTAINER_NAME}:/tmp/eml"
-docker exec "${CONTAINER_NAME}" bash -c 'for f in /tmp/eml/*.eml; do cat "$f"; echo ""; done | /usr/local/bin/stalwart-cli -u http://localhost:80 -c admin:admin import messages -f mbox alice -'
+docker exec "${CONTAINER_NAME}" bash -c 'for f in /tmp/eml/{1,3}.eml; do cat "$f"; echo ""; done | /usr/local/bin/stalwart-cli -u http://localhost:80 -c admin:admin import messages -f mbox alice -'
 echo "Email import complete!"
-

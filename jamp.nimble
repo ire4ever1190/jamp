@@ -11,6 +11,7 @@ srcDir        = "src"
 
 requires "nim >= 2.2.4"
 requires "anano >= 0.2.0 & < 0.3.0"
+requires "casserole >= 0.3.0"
 
 task buildContainer, "Builds test mail server container":
   exec "podman build --tag mail-memory tests/image/"

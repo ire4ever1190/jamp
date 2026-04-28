@@ -26,7 +26,7 @@ type
     isPersonal*: bool
     isReadOnly*: bool
     accountCapabilities: Table[string, JsonNode]
-    
+
   Session* = object
     username*: string
     apiUrl*: string
@@ -36,7 +36,7 @@ type
     state*: string
     accounts*: Table[string, Account]
     capabilities*: Table[string, JsonNode]
-    
+
   Invocation* = ref object
     ## An invocation represents a method call against the JMAP server
     name*: string
@@ -48,7 +48,7 @@ type
     ## capability and the type it returns
     needed*: seq[string] # Capabilities needed
     invocation*: Invocation
-    
+
 
   JMAPRequest* = object
     `using`*: seq[string]
@@ -67,6 +67,7 @@ type
     sessionState*: string
 
   SetError* = object
+    ## Error object that is in SetResponse_ when a record fails to be created, updated, or destroyed
     `type`*: string
     description*: Option[string]
 
@@ -85,8 +86,12 @@ type
     accountId*, id*, fileType*: string
     size*: uint
 
+  StateChange* = Table[string, Table[string, string]]
+    ## Stores [StateChanges](https://jmap.io/spec-core.html#the-statechange-object) for types.
+    ## The first key is the account ID which maps to pairs of types (e.g. Email, Mailbox) to their state ID
+
 const
-  # from here https://jmap.io/spec-core.html#the-id-data-type 
+  # from here https://jmap.io/spec-core.html#the-id-data-type
   allowedIDCharacters = {'a'..'z'} + {'A'..'Z'} + {'0'..'9'} + {'-', '_'}
 
 # Hooks
@@ -158,7 +163,7 @@ func `[]`*(resp: JMAPResponse, id: string): JsonNode {.raises: [KeyError].} =
     if invocation.id == id:
       for key, value in invocation.arguments:
         result[key] = value
-          
+
   if result.len == 0:
     raise (ref KeyError)(msg: id & " was not found in the response")
 
@@ -182,11 +187,11 @@ func ok*(resp: JMAPResponse, call: Call): bool =
 proc `[]`*[T](resp: JMAPResponse, call: Call[T]): T {.inline.} =
   ## Gets response data for a call.
   ## Automatically parses the json and converts to the calls response type.
-  ## Will throw an exception if trying to get value from 
+  ## Will throw an exception if trying to get value from
   for invocation in resp.methodResponses:
     if invocation.id == call.id and not invocation.ok:
-      raise (ref CallError)(msg: 
-        invocation.arguments["description"].str, 
+      raise (ref CallError)(msg:
+        invocation.arguments["description"].str,
         kind: invocation.arguments["type"].str
       )
 
@@ -211,7 +216,7 @@ proc newInvocation*(name: string, args: sink JsonNode, id = ""): Invocation =
     assert id.len >= 1 and id.len <= 255, "ID is too big"
     for c in id:
       assert c in allowedIDCharacters, "Invalid character '" & $c & "'"
-        
+
   assert args.kind == JObject, fmt"args must be a JSON object (Got {args.kind}) {args.pretty()}"
   result = Invocation(
     name: name,
