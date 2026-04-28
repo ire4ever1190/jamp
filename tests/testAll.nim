@@ -1,5 +1,7 @@
-import std/[osproc, unittest, sequtils, options, strutils, algorithm]
+import std/[osproc, unittest, sequtils, options, strutils, algorithm, tables, times]
 import jamp
+
+import pkg/[anano, casserole]
 
 import jamp/specs/core
 
@@ -11,8 +13,8 @@ test "Unauthorised requests are handled":
     check false
   except JMapError as e:
     check e.msg == "Auth details are incorrect"
-   
-   
+
+
 let client = newJMAPClient(basicAuth("alice", "aliceSecret"), "127.0.0.1:80")
 
 test "Start session":
@@ -67,7 +69,7 @@ suite "Blobs":
     req &= get
     let resp = client.request(req)
     let blobID = resp[get].list[0]["attachments"][0]["blobId"].str
-    check client.downloadBlob(accountID, blobID) == "Hello world\n" 
+    check client.downloadBlob(accountID, blobID) == "Hello world\n"
 
   test "Uploading blob":
     let
@@ -85,3 +87,96 @@ suite "Blobs":
       resp = client.request(Blob.copy(accountID, accountID, @[origBlob.id]))
       newID = resp.copied.get()[origBlob.id]
     check client.downloadBlob(accountID, newID) == blob
+
+proc deleteEmail(id: string) =
+  let req = Email.setVal(accountId, destroy = @[id])
+  assert id in client.request(req).destroyed.get()
+
+
+suite "Mail":
+  let inbox = block:
+    let boxes = client.request(
+      Mailbox.get(accountID, properties = Mailbox.props(id, name))
+    )
+    var inbox = ""
+    for box in boxes.list:
+      if box.name == "Inbox":
+        inbox = box.id
+    assert inbox != ""
+    inbox
+
+  let testEmail = client.uploadBlob(accountID, "application/mbox", "tests/testdata/eml/4.eml".readFile())
+
+  test "Importing mail":
+    let
+      id = $genNanoId()
+      # Import it
+      resp = client.request(
+        EMail.importMail(accountID, emails = {
+          id: EmailImport(
+            blobId: testEmail.id,
+            mailboxIds: @{
+              $inbox: true
+            }.toTable(),
+            receivedAt: now()
+          )
+        }.toTable)
+      )
+    # Check it was created
+    let newId = resp.created.get()[id]["id"].to(string)
+    defer: deleteEmail(newId)
+
+    # And see if we can get it
+    let
+      getRequest = Email.get(accountID, @[newId])
+      getResp = client.request(
+        getRequest
+      )
+    check getResp.list[0]["id"].to(string) == newId
+
+  test "Changes":
+    # Get initial state
+    let state = client.request(Email.get(accountId)).state
+
+    # Change the state
+    let newId = client.request(
+      Email.importMail(accountID, emails = {
+        "foo": EmailImport(
+          blobId: testEmail.id,
+          mailboxIds: @{
+            $inbox: true
+          }.toTable(),
+          receivedAt: now()
+        )
+      }.toTable)
+    ).created.get()["foo"]["id"].to(string)
+    defer: deleteEmail(newId)
+
+    # Changes should just have that
+    let changes = client.request(Email.changes(accountId, state))
+    check changes.created.len > 0
+
+  test "Query Changes":
+    # Get initial state from first query
+    let filter = newFilter(%* {
+      "subject": "Dummy Email"
+    })
+    let state = client.request(Email.query(accountId, filter = filter)).queryState
+
+    # Change the state
+    let newId = client.request(
+      Email.importMail(accountID, emails = {
+        "foo": EmailImport(
+          blobId: testEmail.id,
+          mailboxIds: @{
+            $inbox: true
+          }.toTable(),
+          receivedAt: now()
+        )
+      }.toTable)
+    ).created.get()["foo"]["id"].to(string)
+    defer: deleteEmail(newId)
+
+    # Changes should just have that
+    let changes = client.request(Email.queryChanges(accountId, state, filter=filter))
+    check changes.added.len > 0
