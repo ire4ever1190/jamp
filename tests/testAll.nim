@@ -134,7 +134,7 @@ suite "Mail":
       )
     check getResp.list[0]["id"].to(string) == newId
 
-  test "Query changes":
+  test "Changes":
     # Get initial state
     let state = client.request(Email.get(accountId)).state
 
@@ -155,3 +155,28 @@ suite "Mail":
     # Changes should just have that
     let changes = client.request(Email.changes(accountId, state))
     check changes.created.len > 0
+
+  test "Query Changes":
+    # Get initial state from first query
+    let filter = newFilter(%* {
+      "subject": "Dummy Email"
+    })
+    let state = client.request(Email.query(accountId, filter = filter)).queryState
+
+    # Change the state
+    let newId = client.request(
+      Email.importMail(accountID, emails = {
+        "foo": EmailImport(
+          blobId: testEmail.id,
+          mailboxIds: @{
+            $inbox: true
+          }.toTable(),
+          receivedAt: now()
+        )
+      }.toTable)
+    ).created.get()["foo"]["id"].to(string)
+    defer: deleteEmail(newId)
+
+    # Changes should just have that
+    let changes = client.request(Email.queryChanges(accountId, state, filter=filter))
+    check changes.added.len > 0

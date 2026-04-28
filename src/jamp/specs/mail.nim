@@ -104,6 +104,25 @@ proc changes*(m; accountId, sinceState: JPar[string],
     args
   )
 
+proc queryChanges*(m; accountId, sinceQueryState: JPar[string],
+                   filter: JPar[FilterOperator] = defaultVal,
+                   sort: JPar[seq[Comparator]] = defaultVal,
+                   maxChanges: JPar[uint] = defaultVal,
+                   upToId: JPar[string] = defaultVal,
+                   calculateTotal: JPar[bool] = false,
+                   collapseThreads: JPar[bool] = false): Call[QueryChangesResponse] =
+  ## Check for changes to the results of an Email/query since **sinceQueryState**.
+  ##
+  ## * **sinceQueryState**: The queryState from a previous Email/query call
+  ## * **collapseThreads**: Must match the collapseThreads value used in the original Email/query
+  let args = Base.queryChanges(accountId, sinceQueryState, filter, sort, maxChanges, upToId, calculateTotal)
+  args["collapseThreads"] = collapseThreads
+  result.needed = @[mailCapability, coreCapability]
+  result.invocation = newInvocation(
+    "Email/queryChanges",
+    args
+  )
+
 
 proc importMail*(m; accountId: JPar[string], ifInState: JPar[string] = defaultVal, emails: Table[string, EmailImport]): Call[ImportedEmails] =
   result.needed = @[mailCapability, coreCapability]
