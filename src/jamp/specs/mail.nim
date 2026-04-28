@@ -56,10 +56,10 @@ using m: typedesc[Email]
 proc get*(m; accountId: JPar[string], ids: JPar[seq[string]] = defaultVal,
           properties: JPar[seq[string]] = @["id"],
           bodyProperties: JPar[seq[string]] = @["partId", "blobId", "size", "name", "type", "charset", "disposition", "cid", "language", "location"],
-          fetchTextBodyValues: JPar[bool] = false, fetchHTMLBodyValues: JPar[bool] = false): Call[MailGet] =
+          fetchTextBodyValues: JPar[bool] = false, fetchHTMLBodyValues: JPar[bool] = false, fetchAllBodyValues: JPar[bool] = false): Call[MailGet] =
   ## Same as base get.
   let args = Base.get(accountId, ids, properties)
-  args.addParams(bodyProperties, fetchHTMLBodyValues, fetchTextBodyValues)
+  args.addParams(bodyProperties, fetchHTMLBodyValues, fetchTextBodyValues, fetchAllBodyValues)
   result.needed = @[mailCapability, coreCapability]
   result.invocation = newInvocation(
     "Email/get",
