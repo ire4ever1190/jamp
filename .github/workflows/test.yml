@@ -19,7 +19,7 @@ jobs:
     name: Nim ${{ matrix.nim }}
     steps:
       - name: Setup Nim Enviroment
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Nim
         uses: iffy/install-nim@v5
