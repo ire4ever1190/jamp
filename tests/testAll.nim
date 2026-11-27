@@ -1,4 +1,4 @@
-import std/[osproc, unittest, sequtils, options, strutils, algorithm, tables, times]
+import std/[osproc, os, unittest, sequtils, options, strutils, algorithm, tables, times]
 import jamp
 
 import pkg/[anano, casserole]
@@ -44,7 +44,7 @@ proc findId(name: string): string =
   raise (ref KeyError)(msg: "Can't find " & name & " [Available: " & names.join(", ") & "]")
 
 let
-  accountID = findId("alice")
+  accountID = findId("alice@example.org")
 
 suite "Mailboxes":
   test "Get":
@@ -177,6 +177,11 @@ suite "Mail":
     ).created.get()["foo"]["id"].to(string)
     defer: deleteEmail(newId)
 
-    # Changes should just have that
-    let changes = client.request(Email.queryChanges(accountId, state, filter=filter))
+    # Changes should just have that. Indexing is asynchronous on the server,
+    # so poll queryChanges until the new email shows up
+    var changes = client.request(Email.queryChanges(accountId, state, filter=filter))
+    for _ in 1 .. 20:
+      if changes.added.len > 0: break
+      sleep 500
+      changes = client.request(Email.queryChanges(accountId, state, filter=filter))
     check changes.added.len > 0

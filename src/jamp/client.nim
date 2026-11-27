@@ -71,6 +71,18 @@ proc startSession*(client: JMAPClient | AsyncJMAPClient, insecure=false) {.multi
       client.session = resp.body.await().parseJson().to(Session)
     except JsonParsingError:
       raise (ref IOError)(msg: await resp.body)
+    if insecure:
+      # The server builds session URLs from its public hostname (usually https),
+      # so point them back at the host we connected to over plain http
+      template fixUrl(url: var string) =
+        let u = parseUri(url)
+        url = "http://" & client.host & u.path &
+          (if u.query.len > 0: "?" & u.query else: "") &
+          (if u.anchor.len > 0: "#" & u.anchor else: "")
+      fixUrl(client.session.apiUrl)
+      fixUrl(client.session.downloadUrl)
+      fixUrl(client.session.uploadUrl)
+      fixUrl(client.session.eventSourceUrl)
   elif resp.code == Http401:
     raise (ref JMapError)(msg: "Auth details are incorrect")
   else:
