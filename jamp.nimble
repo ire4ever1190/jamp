@@ -18,7 +18,7 @@ task buildContainer, "Builds test mail server container":
 
 task startContainer, "Starts the test mail server container":
   try:
-    exec "docker run -d --network host -v $PWD/tests/testdata/config.toml:/opt/stalwart/etc/config.toml:ro --name test-mail stalwartlabs/stalwart:latest"
+    exec "docker run -d --network host -v $PWD/tests/testdata/config.toml:/opt/stalwart/etc/config.toml:ro --name test-mail stalwartlabs/stalwart:v1.2.1"
   except OSError:
     exec "docker start test-mail"
   exec "bash tests/testdata/provision.sh"
