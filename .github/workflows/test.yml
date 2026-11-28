@@ -26,8 +26,8 @@ jobs:
         with:
           version: ${{ matrix.nim }}
 
-      - name: Update nimble
-        run: nimble update
+      - name: Download deps
+        run: nimble -y setup
 
       - uses: docker/setup-docker-action@v5
 
