@@ -27,8 +27,9 @@ jobs:
           version: ${{ matrix.nim }}
 
       - name: Download deps
-        run: nimble -y setup
-
+        run: |
+          nimble -y setup
+          cat nimble.paths
       - uses: docker/setup-docker-action@v5
 
       - name: Start test mail server
