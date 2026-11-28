@@ -111,7 +111,7 @@ proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JM
   assert client.hasSession(), "Session doesn't exist. You might've forgotten to call startSession()"
   # Add auth info
   let resp = await client.http.request(
-    client.session.apiUrl,
+    client.base / client.session.apiUrl,
     HttpPost,
     body = $req.toJson(
       ToJsonOptions(enumMode: joptEnumString)
