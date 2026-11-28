@@ -25,6 +25,7 @@
             nimble
             nim
             gcc
+            docker
           ];
           buildInputs = with pkgs; [ openssl ];
         };
