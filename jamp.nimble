@@ -9,23 +9,23 @@ srcDir        = "src"
 
 # Dependencies
 
-requires "nim >= 2.2.4"
+requires "nim >= 2.2.10"
 requires "anano >= 0.2.0 & < 0.3.0"
 requires "gh:ire4ever1190/casserole >= 0.3.0"
 
-task buildContainer, "Builds test mail server container":
-  exec "podman build --tag mail-memory tests/image/"
+task stopContainer, "Stops the test mail server container":
+  try: exec "docker stop --timeout 0 test-mail"
+  except OSError: discard
+  try: exec "docker rm test-mail"
+  except OSError: discard
+
+task cleanContainer, "Removes container, data volume and image":
+  stopContainerTask()
+  try: exec "docker volume rm test-mail-data"
+  except OSError: discard
+  try: exec "docker image rm stalwartlabs/stalwart:v1.2.1"
+  except OSError: discard
 
 task startContainer, "Starts the test mail server container":
-  try:
-    exec "docker run -d --network host -v $PWD/tests/testdata/config.toml:/opt/stalwart/etc/config.toml:ro --name test-mail stalwartlabs/stalwart:latest"
-  except OSError:
-    exec "docker start test-mail"
-  exec "bash tests/testdata/provision.sh"
-
-task stopContainer, "Stops the test mail server container":
-  exec "docker stop --time 0 test-mail"
-  exec "docker rm test-mail"
-
-task cleanContainer, "Removes container and image":
-  try: exec "docker image rm mail-memory" except: discard
+  cleanContainerTask()
+  exec "nim r tests/testdata/provision.nim"

@@ -34,9 +34,9 @@
 ]##
 
 runnableExamples "-d:ssl -r:off":
-  import std/sequtils
-  
-  let client = newJMAPClient(basicAuth("our@email.com", "password"), "host")
+  import std/[sequtils, uri]
+
+  let client = newJMAPClient(basicAuth("our@email.com", "password"), parseUri"http://localhost")
   client.startSession()
   let
     query = Email.query("1234")
@@ -57,7 +57,7 @@ when not defined(ssl):
   {.error: "JAMP requires ssl to be enabled (via -d:ssl or switch(\"d\", \"ssl\"))".}
 
 import std/[json, jsonutils]
-  
+
 import jamp/[
   client,
   common,

@@ -12,6 +12,7 @@ import ../common
 
 const
   coreCapability* = "urn:ietf:params:jmap:core"
+  blobCapability* = "urn:ietf:params:jmap:blob"
 
 type
   Core* = object
@@ -41,7 +42,7 @@ proc copy*(b: typedesc[Blob], srcAccount, destAccount: string, blobs: seq[string
     "accountId": destAccount,
     "blobIds": blobs
   }
-  result.needed = @[coreCapability]
+  result.needed = @[coreCapability, blobCapability]
   result.invocation = newInvocation(
     "Blob/copy",
     body

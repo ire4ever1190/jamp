@@ -16,7 +16,7 @@ type
     ## Stores the information about the connection to the server
     http: T
     session*: Session
-    host*: string
+    base*: Uri
     auth: AuthHandler
 
   JMAPClient*      = BaseJMApClient[HttpClient]
@@ -34,7 +34,8 @@ proc `=destroy`(client: var AsyncJMAPClient.obj) =
 
 const userAgent = "Jamp/0.1.0"
 
-proc newBaseClient[T](auth: AuthHandler, host: string): BaseJMAPClient[T] =
+
+proc newBaseClient[T](auth: AuthHandler, base: Uri): BaseJMAPClient[T] =
   result = new BaseJMAPClient[T]
   result.auth = auth
   var defaultHeaders = newHttpHeaders {
@@ -45,14 +46,17 @@ proc newBaseClient[T](auth: AuthHandler, host: string): BaseJMAPClient[T] =
       newHttpClient(userAgent, headers = defaultHeaders)
     else:
       newAsyncHttpClient(userAgent, headers = defaultHeaders)
-  result.host = host
+  result.base = base
 
-proc newJMAPClient*(auth: AuthHandler, hostname: string): JMAPClient =
+proc newBaseClient[T](auth: AuthHandler, host: string): BaseJMAPClient[T] {.deprecated("Pass a Uri").}=
+  newBaseClient[T](auth, parseUri("https://" & host))
+
+proc newJMAPClient*(auth: AuthHandler, hostname: Uri): JMAPClient =
   ## Creates a new JMAP client. If hostname is left blank then it
   ## will try and auto discover the hostname (This may fail)
   result = newBaseClient[HttpClient](auth, hostname)
 
-proc newAsyncJMAPClient*(auth: AuthHandler, hostname: string): AsyncJMAPClient =
+proc newAsyncJMAPClient*(auth: AuthHandler, hostname: Uri): AsyncJMAPClient =
   ## see [newJMAPClient]
   result = newBaseClient[AsyncHttpClient](auth, hostname)
 
@@ -63,9 +67,8 @@ proc startSession*(client: JMAPClient | AsyncJMAPClient, insecure=false) {.multi
   ## authenticated.
   ##
   ## * **insecure**: Make this true to use http instead of https. Only recommended for testing against local server
-  let resp = await client.http.request(
-    (if insecure: "http://" else: "https://") & client.host & "/.well-known/jmap",
-  )
+  let resp = await client.http.request(client.base / ".well-known/jmap")
+
   if resp.code.is2xx:
     try:
       client.session = resp.body.await().parseJson().to(Session)
@@ -103,12 +106,18 @@ proc hasSession*(client: BaseJMAPClient): bool =
   ## Returns true if the client has a current session
   client.session.state != ""
 
+proc resolveUrl(base: Uri, url: string): Uri =
+  ## Session URLs are absolute per the JMAP spec, but handle relative ones too
+  let parsed = parseUri(url)
+  if parsed.scheme.len > 0: parsed
+  else: base / url
+
 proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JMAPResponse] {.multisync.} =
   ## Perform a raw request to the JMAP server
   assert client.hasSession(), "Session doesn't exist. You might've forgotten to call startSession()"
   # Add auth info
   let resp = await client.http.request(
-    client.session.apiUrl,
+    resolveUrl(client.base, client.session.apiUrl),
     HttpPost,
     body = $req.toJson(
       ToJsonOptions(enumMode: joptEnumString)
@@ -145,17 +154,17 @@ proc downloadBlob*(client: JMAPClient | AsyncJMAPClient, accountID, blobID: stri
                   contentType = "file/any", name = "download"): Future[string] {.multisync.} =
   ## Used to download a blob.
   ## You shouldn't need to change the optional parameters
-  let url = client.session.downloadUrl.multiReplace(
+  let url = resolveUrl(client.base, client.session.downloadUrl.multiReplace(
     ("{accountId}", accountID),
     ("{blobId}", blobID),
     ("{type}", contentType),
     ("{name}", name)
-  )
+  ))
   result = await client.http.getContent(url)
 
 proc uploadBlob*(client: JMAPClient | AsyncJMAPClient, accountID, contentType, blob: string): Future[Blob] {.multisync.} =
   ## Uploads a blob of data to the server. If uploading a file from disk then use [uploadFile]
-  let url = client.session.uploadUrl.replace("{accountId}", accountId)
+  let url = resolveUrl(client.base, client.session.uploadUrl.replace("{accountId}", accountId))
   let resp = await client.http.request(url, HttpPost, blob, newHttpHeaders {
     "Content-Type": contentType
   })

@@ -18,12 +18,13 @@ text """
 
 codeBlock:
   import jamp
+  import std/uri
   const
     # You need to get this info yourself somehow
     accountID = "1234" # ID of the account we are operating against
     trashID   = "4567" # ID of the trash mailbox
-    
-  let client = newJMAPClient(basicAuth("our@email.com", "password"), "host")
+
+  let client = newJMAPClient(basicAuth("our@email.com", "password"), parseUri"http://localhost")
   client.startSession()
 
 text """
@@ -33,7 +34,7 @@ text """
 
 codeBlock:
   import std/times
-  
+
   const deleteFrom = {
     "notifications@instructure.com": 4.days,
     "notifications@github.com": 7.days,
@@ -102,7 +103,7 @@ text """
 
 codeBlock:
   import std/tables
-  
+
   var toDelete: Table[string, PatchObject]
   for email in resp[get]["list"]:
     var patch: PatchObject
@@ -133,7 +134,7 @@ codeBlock:
 
 text """
   Once you run that, if nothing fails, then any emails from those addresses and older than those days should be in
-  your trash instead of your inbox. 
+  your trash instead of your inbox.
 
   Now that you understand the basics of JMAP and using Jamp you should be able to go off and build something even cooler
 """
