@@ -51,12 +51,12 @@ proc newBaseClient[T](auth: AuthHandler, base: Uri): BaseJMAPClient[T] =
 proc newBaseClient[T](auth: AuthHandler, host: string): BaseJMAPClient[T] {.deprecated("Pass a Uri").}=
   newBaseClient[T](auth, parseUri("https://" & host))
 
-proc newJMAPClient*(auth: AuthHandler, hostname: string): JMAPClient =
+proc newJMAPClient*(auth: AuthHandler, hostname: Uri): JMAPClient =
   ## Creates a new JMAP client. If hostname is left blank then it
   ## will try and auto discover the hostname (This may fail)
   result = newBaseClient[HttpClient](auth, hostname)
 
-proc newAsyncJMAPClient*(auth: AuthHandler, hostname: string): AsyncJMAPClient =
+proc newAsyncJMAPClient*(auth: AuthHandler, hostname: Uri): AsyncJMAPClient =
   ## see [newJMAPClient]
   result = newBaseClient[AsyncHttpClient](auth, hostname)
 
@@ -67,8 +67,8 @@ proc startSession*(client: JMAPClient | AsyncJMAPClient, insecure=false) {.multi
   ## authenticated.
   ##
   ## * **insecure**: Make this true to use http instead of https. Only recommended for testing against local server
-  let resp = await client.http.request(client.base / ".well-known/jmap",
-  )
+  let resp = await client.http.request(client.base / ".well-known/jmap")
+
   if resp.code.is2xx:
     try:
       client.session = resp.body.await().parseJson().to(Session)
