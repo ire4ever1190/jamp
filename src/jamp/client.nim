@@ -16,7 +16,7 @@ type
     ## Stores the information about the connection to the server
     http: T
     session*: Session
-    host*: string
+    base*: Uri
     auth: AuthHandler
 
   JMAPClient*      = BaseJMApClient[HttpClient]
@@ -34,7 +34,8 @@ proc `=destroy`(client: var AsyncJMAPClient.obj) =
 
 const userAgent = "Jamp/0.1.0"
 
-proc newBaseClient[T](auth: AuthHandler, host: string): BaseJMAPClient[T] =
+
+proc newBaseClient[T](auth: AuthHandler, base: Uri): BaseJMAPClient[T] =
   result = new BaseJMAPClient[T]
   result.auth = auth
   var defaultHeaders = newHttpHeaders {
@@ -45,7 +46,10 @@ proc newBaseClient[T](auth: AuthHandler, host: string): BaseJMAPClient[T] =
       newHttpClient(userAgent, headers = defaultHeaders)
     else:
       newAsyncHttpClient(userAgent, headers = defaultHeaders)
-  result.host = host
+  result.base = base
+
+proc newBaseClient[T](auth: AuthHandler, host: string): BaseJMAPClient[T] {.deprecated("Pass a Uri").}=
+  newBaseClient[T](auth, parseUri("https://" & host))
 
 proc newJMAPClient*(auth: AuthHandler, hostname: string): JMAPClient =
   ## Creates a new JMAP client. If hostname is left blank then it
@@ -63,26 +67,13 @@ proc startSession*(client: JMAPClient | AsyncJMAPClient, insecure=false) {.multi
   ## authenticated.
   ##
   ## * **insecure**: Make this true to use http instead of https. Only recommended for testing against local server
-  let resp = await client.http.request(
-    (if insecure: "http://" else: "https://") & client.host & "/.well-known/jmap",
+  let resp = await client.http.request(client.base / ".well-known/jmap",
   )
   if resp.code.is2xx:
     try:
       client.session = resp.body.await().parseJson().to(Session)
     except JsonParsingError:
       raise (ref IOError)(msg: await resp.body)
-    if insecure:
-      # The server builds session URLs from its public hostname (usually https),
-      # so point them back at the host we connected to over plain http
-      template fixUrl(url: var string) =
-        let u = parseUri(url)
-        url = "http://" & client.host & u.path &
-          (if u.query.len > 0: "?" & u.query else: "") &
-          (if u.anchor.len > 0: "#" & u.anchor else: "")
-      fixUrl(client.session.apiUrl)
-      fixUrl(client.session.downloadUrl)
-      fixUrl(client.session.uploadUrl)
-      fixUrl(client.session.eventSourceUrl)
   elif resp.code == Http401:
     raise (ref JMapError)(msg: "Auth details are incorrect")
   else:
