@@ -106,12 +106,18 @@ proc hasSession*(client: BaseJMAPClient): bool =
   ## Returns true if the client has a current session
   client.session.state != ""
 
+proc resolveUrl(base: Uri, url: string): Uri =
+  ## Session URLs are absolute per the JMAP spec, but handle relative ones too
+  let parsed = parseUri(url)
+  if parsed.scheme.len > 0: parsed
+  else: base / url
+
 proc request*(client: JMAPClient | AsyncJMAPClient, req: JMAPRequest): Future[JMAPResponse] {.multisync.} =
   ## Perform a raw request to the JMAP server
   assert client.hasSession(), "Session doesn't exist. You might've forgotten to call startSession()"
   # Add auth info
   let resp = await client.http.request(
-    client.base / client.session.apiUrl,
+    resolveUrl(client.base, client.session.apiUrl),
     HttpPost,
     body = $req.toJson(
       ToJsonOptions(enumMode: joptEnumString)
@@ -148,17 +154,17 @@ proc downloadBlob*(client: JMAPClient | AsyncJMAPClient, accountID, blobID: stri
                   contentType = "file/any", name = "download"): Future[string] {.multisync.} =
   ## Used to download a blob.
   ## You shouldn't need to change the optional parameters
-  let url = client.session.downloadUrl.multiReplace(
+  let url = resolveUrl(client.base, client.session.downloadUrl.multiReplace(
     ("{accountId}", accountID),
     ("{blobId}", blobID),
     ("{type}", contentType),
     ("{name}", name)
-  )
+  ))
   result = await client.http.getContent(url)
 
 proc uploadBlob*(client: JMAPClient | AsyncJMAPClient, accountID, contentType, blob: string): Future[Blob] {.multisync.} =
   ## Uploads a blob of data to the server. If uploading a file from disk then use [uploadFile]
-  let url = client.session.uploadUrl.replace("{accountId}", accountId)
+  let url = resolveUrl(client.base, client.session.uploadUrl.replace("{accountId}", accountId))
   let resp = await client.http.request(url, HttpPost, blob, newHttpHeaders {
     "Content-Type": contentType
   })

@@ -21,6 +21,8 @@ task stopContainer, "Stops the test mail server container":
 
 task cleanContainer, "Removes container, data volume and image":
   stopContainerTask()
+  try: exec "docker volume rm test-mail-data"
+  except OSError: discard
   try: exec "docker image rm stalwartlabs/stalwart:v1.2.1"
   except OSError: discard
 
