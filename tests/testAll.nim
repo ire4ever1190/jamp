@@ -1,21 +1,22 @@
-import std/[osproc, os, unittest, sequtils, options, strutils, algorithm, tables, times]
+import std/[osproc, os, unittest, sequtils, options, strutils, algorithm, tables, times, uri]
 import jamp
 
 import pkg/[anano, casserole]
 
 import jamp/specs/core
 
+const host = parseUri"http://127.0.0.1:80"
 
 test "Unauthorised requests are handled":
   try:
-    let client = newJMAPClient(basicAuth("alice", "incorrect"), "127.0.0.1:80")
+    let client = newJMAPClient(basicAuth("alice", "incorrect"), host)
     client.startSession(insecure=true)
     check false
   except JMapError as e:
     check e.msg == "Auth details are incorrect"
 
 
-let client = newJMAPClient(basicAuth("alice", "aliceSecret"), "127.0.0.1:80")
+let client = newJMAPClient(basicAuth("alice", "aliceSecret"), host)
 
 test "Start session":
   client.startSession(insecure=true)
